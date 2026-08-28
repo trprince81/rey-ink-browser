@@ -1,7 +1,9 @@
-// Rey Ink Browser transport API for Vercel.
-// The extension registers one PC slot and polls for commands.
-// NOTE: Vercel Functions are stateless across instances. A durable shared store
-// must be attached for production multi-device state. No Supabase is used.
+export const runtime = 'edge';
+
+// Rey Ink Browser transport API.
+// The extension registers a PC slot and polls for commands.
+// NOTE: this first transport is stateless; a shared store is still needed for
+// reliable multi-instance production state. No Supabase is used.
 const devices = globalThis.__reyInkDevices || (globalThis.__reyInkDevices = new Map());
 const commands = globalThis.__reyInkCommands || (globalThis.__reyInkCommands = new Map());
 const results = globalThis.__reyInkResults || (globalThis.__reyInkResults = new Map());
@@ -13,14 +15,14 @@ export default async function handler(req){
   if(req.method==='OPTIONS')return json({ok:true});
   if(req.method==='GET'){
     const url=new URL(req.url);
-    if(url.searchParams.get('action')==='health')return json({ok:true,service:'rey-ink',version:'2.4',time:Date.now()});
+    if(url.searchParams.get('action')==='health')return json({ok:true,service:'rey-ink',version:'2.5',time:Date.now()});
     if(url.searchParams.get('action')==='list_devices')return json({ok:true,devices:list()});
-    return json({ok:true,service:'rey-ink',version:'2.4',devices:list()});
+    return json({ok:true,service:'rey-ink',version:'2.5',devices:list()});
   }
   if(req.method!=='POST')return json({ok:false,error:'Método no permitido'},405);
   let body;try{body=await req.json()}catch{return json({ok:false,error:'JSON inválido'},400)}
   const action=String(body.action||'');
-  if(action==='health')return json({ok:true,service:'rey-ink',version:'2.4',time:Date.now()});
+  if(action==='health')return json({ok:true,service:'rey-ink',version:'2.5',time:Date.now()});
   if(action==='list_devices')return json({ok:true,devices:list()});
   const pc_slot=Number(body.pc_slot);
   if(!Number.isInteger(pc_slot)||pc_slot<1||pc_slot>20)return json({ok:false,error:'PC inválida'},400);
