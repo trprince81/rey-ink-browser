@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Rey Ink",
-  "version": "2.0.0",
-  "description": "Rey Ink — control remoto PC↔teléfono conectado al backend de Rey Ink en Vercel.",
-  "permissions": ["activeTab", "alarms", "downloads", "scripting", "storage", "tabs", "webNavigation"],
+  "version": "2.3.1",
+  "description": "Rey Ink: selecciona PC1–PC20 y conecta automáticamente. Grabaciones guardadas como rutinas seleccionables.",
+  "permissions": ["activeTab","alarms","downloads","scripting","storage","tabs","webNavigation"],
   "host_permissions": ["<all_urls>"],
-  "action": { "default_title": "Abrir Rey Ink" },
-  "background": { "service_worker": "background.js" },
-  "content_scripts": [{ "matches": ["<all_urls>"], "js": ["recorder_boot.js"], "run_at": "document_idle", "all_frames": false }]
+  "action": {"default_title":"Abrir Rey Ink"},
+  "background": {"service_worker":"background.js"},
+  "content_scripts": [{"matches":["<all_urls>"],"js":["recorder_boot.js"],"run_at":"document_idle","all_frames":false}]
 }
