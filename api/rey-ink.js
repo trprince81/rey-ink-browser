@@ -2,55 +2,71 @@ import { createClient } from 'redis';
 export const runtime='nodejs';
 
 let redisPromise=null;
-const mem=globalThis.__reyInkDevicesV4||(globalThis.__reyInkDevicesV4={devices:new Map(),commands:new Map(),results:new Map()});
-const key=(k,n)=>`reyink:v4:${k}:${n}`;
+const mem=globalThis.__reyInkDevicesV5||(globalThis.__reyInkDevicesV5={devices:new Map(),commands:new Map(),results:new Map()});
+const key=(k,n)=>`reyink:v5:${k}:${n}`;
 const json=(b,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{'content-type':'application/json','cache-control':'no-store','access-control-allow-origin':'*','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type'}});
 const online=d=>!!d&&Date.now()-Number(d.lastSeen||0)<30000;
 
-async function redis(){
-  if(!process.env.REDIS_URL)return null;
-  if(!redisPromise){const c=createClient({url:process.env.REDIS_URL});c.on('error',()=>{});redisPromise=c.connect().then(()=>c)}
-  return redisPromise;
-}
-
-// Also support Vercel/Upstash REST credentials when REDIS_URL is not present.
+// Prefer Vercel/Upstash REST when available. A broken Redis connection must
+// never hang a serverless function for minutes.
 const restReady=()=>!!(process.env.KV_REST_API_URL&&process.env.KV_REST_API_TOKEN);
 async function rest(cmd,args=[]){
   if(!restReady())return null;
-  const r=await fetch(process.env.KV_REST_API_URL,{method:'POST',headers:{Authorization:`Bearer ${process.env.KV_REST_API_TOKEN}`,'content-type':'application/json'},body:JSON.stringify([cmd,...args]),cache:'no-store'});
-  if(!r.ok)throw new Error(`KV HTTP ${r.status}`);
-  const d=await r.json();return d.result;
+  const c=new AbortController();const timer=setTimeout(()=>c.abort(),4000);
+  try{
+    const r=await fetch(process.env.KV_REST_API_URL,{method:'POST',headers:{Authorization:`Bearer ${process.env.KV_REST_API_TOKEN}`,'content-type':'application/json'},body:JSON.stringify([cmd,...args]),cache:'no-store',signal:c.signal});
+    if(!r.ok)throw new Error(`KV HTTP ${r.status}`);
+    const d=await r.json();return d.result;
+  }finally{clearTimeout(timer)}
 }
-function storageName(){return process.env.REDIS_URL?'redis':restReady()?'vercel-kv':'memory'}
+async function redis(){
+  if(!process.env.REDIS_URL||restReady())return null;
+  if(!redisPromise){
+    const c=createClient({url:process.env.REDIS_URL, socket:{connectTimeout:3000}});
+    c.on('error',()=>{});
+    redisPromise=c.connect().then(()=>c).catch(()=>null);
+  }
+  return redisPromise;
+}
+function storageName(){return restReady()?'vercel-kv':process.env.REDIS_URL?'redis':'memory'}
 async function read(k,n){
-  const r=await redis();if(r){const v=await r.get(key(k,n));return v?JSON.parse(v):null}
-  if(restReady()){const v=await rest('GET',[key(k,n)]);return v?JSON.parse(v):null}
+  if(restReady()){try{const v=await rest('GET',[key(k,n)]);return v?JSON.parse(v):null}catch{}}
+  const r=await redis();if(r){try{const v=await r.get(key(k,n));return v?JSON.parse(v):null}catch{}}
   return mem[k+'s']?.get(n)||null;
 }
 async function write(k,n,v,ttl=90){
-  const r=await redis();if(r){await r.set(key(k,n),JSON.stringify(v),{EX:ttl});return}
-  if(restReady()){await rest('SET',[key(k,n),JSON.stringify(v),'EX',ttl]);return}
+  if(restReady()){try{await rest('SET',[key(k,n),JSON.stringify(v),'EX',ttl]);return}catch{}}
+  const r=await redis();if(r){try{await r.set(key(k,n),JSON.stringify(v),{EX:ttl});return}catch{}}
   mem[k+'s']?.set(n,v);
 }
 async function remove(k,n){
-  const r=await redis();if(r){await r.del(key(k,n));return}
-  if(restReady()){await rest('DEL',[key(k,n)]);return}
+  if(restReady()){try{await rest('DEL',[key(k,n)]);return}catch{}}
+  const r=await redis();if(r){try{await r.del(key(k,n));return}catch{}}
   mem[k+'s']?.delete(n);
 }
-async function devices(){const a=[];for(let i=1;i<=20;i++){const d=await read('device',i);a.push({pc_slot:i,is_online:online(d),last_seen:d?.lastSeen||null,state:d?.state||null})}return a}
+async function devices(){
+  const a=[];for(let i=1;i<=20;i++){const d=await read('device',i);a.push({pc_slot:i,is_online:online(d),last_seen:d?.lastSeen||null,state:d?.state||null})}return a;
+}
+function requestUrl(req){
+  try{return new URL(req.url)}catch{
+    const host=req.headers.get('x-forwarded-host')||req.headers.get('host');
+    const proto=req.headers.get('x-forwarded-proto')||'https';
+    return new URL(req.url,`${proto}://${host||'localhost'}`);
+  }
+}
 
 export default async function handler(req){
   if(req.method==='OPTIONS')return json({ok:true});
   const storage=storageName();
   if(req.method==='GET'){
-    const u=new URL(req.url),a=u.searchParams.get('action');
-    if(a==='health')return json({ok:true,service:'rey-ink',version:'4.1',storage,time:Date.now()});
-    return json({ok:true,service:'rey-ink',version:'4.1',storage,devices:await devices()});
+    const u=requestUrl(req),a=u.searchParams.get('action');
+    if(a==='health')return json({ok:true,service:'rey-ink',version:'5.0',storage,time:Date.now()});
+    return json({ok:true,service:'rey-ink',version:'5.0',storage,devices:await devices()});
   }
   if(req.method!=='POST')return json({ok:false,error:'Método no permitido'},405);
   let b;try{b=await req.json()}catch{return json({ok:false,error:'JSON inválido'},400)}
   const a=String(b.action||'');
-  if(a==='health')return json({ok:true,service:'rey-ink',version:'4.1',storage,time:Date.now()});
+  if(a==='health')return json({ok:true,service:'rey-ink',version:'5.0',storage,time:Date.now()});
   if(a==='list_devices')return json({ok:true,devices:await devices(),storage});
   const n=Number(b.pc_slot);if(!Number.isInteger(n)||n<1||n>20)return json({ok:false,error:'PC inválida'},400);
 
@@ -67,7 +83,7 @@ export default async function handler(req){
     if(!online(d))return json({ok:false,error:'PC sin conexión'},409);
     if(b.token&&b.token!==d.token)return json({ok:false,error:'Token inválido'},401);
     const allowed=['get_state','reload','back','forward','new_tab','close_tab','start_bot','stop_bot','navigate','click','type','tab_next','tab_prev','switch_tab','start_recording','stop_recording','run_routine'];
-    const c=String(b.command||'').toLowerCase();if(!allowed.includes(c))return json({ok:false,error:'Comando no permitido'},400);
+    const c=String(b.command||'').toLowerCase().trim();if(!allowed.includes(c))return json({ok:false,error:'Comando no permitido'},400);
     const id=crypto.randomUUID();await write('command',n,{id,command:c,payload:b.payload||{},createdAt:Date.now()},60);
     return json({ok:true,command_id:id,command:c});
   }
