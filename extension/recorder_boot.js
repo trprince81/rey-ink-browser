@@ -1,0 +1,1 @@
+(()=>{if(globalThis.__reyInkBootV23)return;globalThis.__reyInkBootV23=true;chrome.storage.local.get(["recording"]).then(s=>{if(s.recording?.active)chrome.runtime.sendMessage({type:"START_RECORDER",tabId:s.recording.tabId}).catch(()=>{})}).catch(()=>{})})();
