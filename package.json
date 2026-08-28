@@ -1,9 +1,6 @@
 {
   "name": "rey-ink-browser",
   "private": true,
-  "version": "3.0.0",
-  "type": "module",
-  "dependencies": {
-    "redis": "^5.8.2"
-  }
+  "version": "3.0.1",
+  "type": "module"
 }
