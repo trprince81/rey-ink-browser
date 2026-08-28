@@ -1,91 +1,178 @@
-import { createClient } from 'redis';
-export const runtime='nodejs';
+export const runtime = 'nodejs';
 
-let redisPromise=null;
-const mem=globalThis.__reyInkDevicesV6||(globalThis.__reyInkDevicesV6={devices:new Map(),commands:new Map(),results:new Map()});
-const key=(k,n)=>`reyink:v6:${k}:${n}`;
-const json=(b,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{'content-type':'application/json','cache-control':'no-store','access-control-allow-origin':'*','access-control-allow-methods':'GET,POST,OPTIONS','access-control-allow-headers':'content-type'}});
-const online=d=>!!d&&Date.now()-Number(d.lastSeen||0)<30000;
-const restReady=()=>!!(process.env.KV_REST_API_URL&&process.env.KV_REST_API_TOKEN);
-async function rest(cmd,args=[]){
-  if(!restReady())return null;
-  const c=new AbortController();const timer=setTimeout(()=>c.abort(),4000);
-  try{
-    const r=await fetch(process.env.KV_REST_API_URL,{method:'POST',headers:{Authorization:`Bearer ${process.env.KV_REST_API_TOKEN}`,'content-type':'application/json'},body:JSON.stringify([cmd,...args]),cache:'no-store',signal:c.signal});
-    if(!r.ok)throw new Error(`KV HTTP ${r.status}`);
-    const d=await r.json();return d.result;
-  }finally{clearTimeout(timer)}
+// Rey Ink relay API: Vercel-compatible Node handler.
+// Redis was intentionally removed from the request path because a dead Redis
+// connection could leave serverless requests hanging for minutes.
+const mem = globalThis.__reyInkDevicesV7 || (globalThis.__reyInkDevicesV7 = {
+  devices: new Map(), commands: new Map(), results: new Map()
+});
+
+const key = (kind, slot) => `reyink:v7:${kind}:${slot}`;
+const headers = {
+  'content-type': 'application/json; charset=utf-8',
+  'cache-control': 'no-store, no-cache, must-revalidate',
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'GET,POST,OPTIONS',
+  'access-control-allow-headers': 'content-type'
+};
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers });
+const online = d => !!d && Date.now() - Number(d.lastSeen || 0) < 30000;
+
+function getHeader(req, name) {
+  const h = req?.headers;
+  if (!h) return null;
+  if (typeof h.get === 'function') return h.get(name);
+  return h[name] ?? h[name.toLowerCase()] ?? null;
 }
-async function redis(){
-  if(!process.env.REDIS_URL||restReady())return null;
-  if(!redisPromise){
-    const c=createClient({url:process.env.REDIS_URL,socket:{connectTimeout:3000}});c.on('error',()=>{});
-    redisPromise=c.connect().then(()=>c).catch(()=>null);
-  }
-  return redisPromise;
-}
-function storageName(){return restReady()?'vercel-kv':process.env.REDIS_URL?'redis':'memory'}
-async function read(k,n){
-  if(restReady()){try{const v=await rest('GET',[key(k,n)]);return v?JSON.parse(v):null}catch{}}
-  const r=await redis();if(r){try{const v=await r.get(key(k,n));return v?JSON.parse(v):null}catch{}}
-  return mem[k+'s']?.get(n)||null;
-}
-async function write(k,n,v,ttl=90){
-  if(restReady()){try{await rest('SET',[key(k,n),JSON.stringify(v),'EX',ttl]);return}catch{}}
-  const r=await redis();if(r){try{await r.set(key(k,n),JSON.stringify(v),{EX:ttl});return}catch{}}
-  mem[k+'s']?.set(n,v);
-}
-async function remove(k,n){
-  if(restReady()){try{await rest('DEL',[key(k,n)]);return}catch{}}
-  const r=await redis();if(r){try{await r.del(key(k,n));return}catch{}}
-  mem[k+'s']?.delete(n);
-}
-async function devices(){const a=[];for(let i=1;i<=20;i++){const d=await read('device',i);a.push({pc_slot:i,is_online:online(d),last_seen:d?.lastSeen||null,state:d?.state||null})}return a;}
-function header(req,name){const h=req?.headers;if(!h)return null;if(typeof h.get==='function')return h.get(name);return h[name]??h[name.toLowerCase()]??null;}
-function requestUrl(req){
-  try{if(req?.url instanceof URL)return req.url;return new URL(req.url);}catch{
-    const host=header(req,'x-forwarded-host')||header(req,'host');
-    const proto=header(req,'x-forwarded-proto')||'https';
-    return new URL(req.url||'/',`${proto}://${host||'localhost'}`);
+
+function getAction(req) {
+  // Vercel's Node runtime can expose req.url as either an absolute or a
+  // relative path. Always give URL() a base so '/api/rey-ink?...' is valid.
+  try {
+    return new URL(String(req?.url || '/'), 'https://rey-ink-browser.vercel.app').searchParams.get('action') || '';
+  } catch {
+    return '';
   }
 }
-export default async function handler(req){
-  if(req.method==='OPTIONS')return json({ok:true});
-  const storage=storageName();
-  if(req.method==='GET'){
-    const u=requestUrl(req),a=u.searchParams.get('action');
-    if(a==='health')return json({ok:true,service:'rey-ink',version:'6.0',storage,time:Date.now()});
-    return json({ok:true,service:'rey-ink',version:'6.0',storage,devices:await devices()});
+
+function storageName() {
+  return process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN ? 'vercel-kv' : 'memory';
+}
+
+async function kv(command, args = []) {
+  const url = process.env.KV_REST_API_URL;
+  const token = process.env.KV_REST_API_TOKEN;
+  if (!url || !token) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 1500);
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify([command, ...args]),
+      cache: 'no-store',
+      signal: controller.signal
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    return data?.result ?? null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
-  if(req.method!=='POST')return json({ok:false,error:'Método no permitido'},405);
-  let b;try{b=await req.json()}catch{return json({ok:false,error:'JSON inválido'},400)}
-  const a=String(b.action||'');
-  if(a==='health')return json({ok:true,service:'rey-ink',version:'6.0',storage,time:Date.now()});
-  if(a==='list_devices')return json({ok:true,devices:await devices(),storage});
-  const n=Number(b.pc_slot);if(!Number.isInteger(n)||n<1||n>20)return json({ok:false,error:'PC inválida'},400);
-  if(a==='register_device'||a==='heartbeat'){
-    const old=await read('device',n);const token=String(b.token||old?.token||crypto.randomUUID());
-    const d={pc_slot:n,token,lastSeen:Date.now(),state:b.state||old?.state||null};await write('device',n,d,90);
-    return json({ok:true,pc_slot:n,token,is_online:true,storage});
+}
+
+async function read(kind, slot) {
+  const v = await kv('GET', [key(kind, slot)]);
+  if (v !== null && v !== undefined) {
+    try { return JSON.parse(v); } catch { return null; }
   }
-  const d=await read('device',n);
-  if(a==='get_state')return json({ok:true,pc_slot:n,is_online:online(d),state:d?.state||null,storage});
-  if(a==='command'){
-    if(!online(d))return json({ok:false,error:'PC sin conexión'},409);
-    if(b.token&&b.token!==d.token)return json({ok:false,error:'Token inválido'},401);
-    const allowed=['get_state','reload','back','forward','new_tab','close_tab','start_bot','stop_bot','navigate','click','type','tab_next','tab_prev','switch_tab','start_recording','stop_recording','run_routine'];
-    const c=String(b.command||'').toLowerCase().trim();if(!allowed.includes(c))return json({ok:false,error:'Comando no permitido'},400);
-    const id=crypto.randomUUID();await write('command',n,{id,command:c,payload:b.payload||{},createdAt:Date.now()},60);return json({ok:true,command_id:id,command:c});
+  return mem[`${kind}s`]?.get(Number(slot)) || null;
+}
+
+async function write(kind, slot, value, ttl = 90) {
+  const payload = JSON.stringify(value);
+  const saved = await kv('SET', [key(kind, slot), payload, 'EX', ttl]);
+  if (saved !== null || (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)) return;
+  mem[`${kind}s`]?.set(Number(slot), value);
+}
+
+async function remove(kind, slot) {
+  const result = await kv('DEL', [key(kind, slot)]);
+  if (result !== null || (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)) return;
+  mem[`${kind}s`]?.delete(Number(slot));
+}
+
+async function devices() {
+  const out = [];
+  for (let i = 1; i <= 20; i++) {
+    const d = await read('device', i);
+    out.push({ pc_slot: i, is_online: online(d), last_seen: d?.lastSeen || null, state: d?.state || null });
   }
-  if(a==='poll_command'){
-    if(!d||b.token!==d.token)return json({ok:false,error:'Token inválido'},401);
-    d.lastSeen=Date.now();await write('device',n,d,90);const c=await read('command',n);if(!c)return json({ok:true,command:null});
-    await remove('command',n);return json({ok:true,command:c});
+  return out;
+}
+
+export default async function handler(req) {
+  try {
+    if (req.method === 'OPTIONS') return json({ ok: true, service: 'rey-ink' });
+
+    if (req.method === 'GET') {
+      const action = getAction(req);
+      // Health never touches storage. It must always return immediately.
+      if (action === 'health' || !action) {
+        return json({ ok: true, service: 'rey-ink', version: '7.0', storage: storageName(), time: Date.now() });
+      }
+      if (action === 'list_devices') {
+        return json({ ok: true, devices: await devices(), storage: storageName() });
+      }
+      return json({ ok: false, error: 'Acción GET desconocida' }, 400);
+    }
+
+    if (req.method !== 'POST') return json({ ok: false, error: 'Método no permitido' }, 405);
+
+    let body;
+    try { body = await req.json(); } catch { return json({ ok: false, error: 'JSON inválido' }, 400); }
+    const action = String(body?.action || '').trim();
+
+    if (action === 'health') return json({ ok: true, service: 'rey-ink', version: '7.0', storage: storageName(), time: Date.now() });
+    if (action === 'list_devices') return json({ ok: true, devices: await devices(), storage: storageName() });
+
+    const n = Number(body?.pc_slot);
+    if (!Number.isInteger(n) || n < 1 || n > 20) return json({ ok: false, error: 'PC inválida' }, 400);
+
+    if (action === 'register_device' || action === 'heartbeat') {
+      const old = await read('device', n);
+      const token = String(body?.token || old?.token || crypto.randomUUID());
+      const device = {
+        pc_slot: n,
+        token,
+        lastSeen: Date.now(),
+        state: body?.state || old?.state || null
+      };
+      await write('device', n, device, 90);
+      return json({ ok: true, pc_slot: n, token, is_online: true, storage: storageName() });
+    }
+
+    const device = await read('device', n);
+
+    if (action === 'get_state') {
+      return json({ ok: true, pc_slot: n, is_online: online(device), state: device?.state || null, storage: storageName() });
+    }
+
+    if (action === 'command') {
+      if (!online(device)) return json({ ok: false, error: 'PC sin conexión' }, 409);
+      if (body?.token && body.token !== device.token) return json({ ok: false, error: 'Token inválido' }, 401);
+      const allowed = ['get_state','reload','back','forward','new_tab','close_tab','start_bot','stop_bot','navigate','click','type','tab_next','tab_prev','switch_tab','start_recording','stop_recording','run_routine'];
+      const command = String(body?.command || '').toLowerCase().trim();
+      if (!allowed.includes(command)) return json({ ok: false, error: 'Comando no permitido' }, 400);
+      const id = crypto.randomUUID();
+      await write('command', n, { id, command, payload: body?.payload || {}, createdAt: Date.now() }, 60);
+      return json({ ok: true, command_id: id, command });
+    }
+
+    if (action === 'poll_command') {
+      if (!device || body?.token !== device.token) return json({ ok: false, error: 'Token inválido' }, 401);
+      device.lastSeen = Date.now();
+      await write('device', n, device, 90);
+      const command = await read('command', n);
+      if (!command) return json({ ok: true, command: null });
+      await remove('command', n);
+      return json({ ok: true, command });
+    }
+
+    if (action === 'command_result') {
+      if (!device || body?.token !== device.token) return json({ ok: false, error: 'Token inválido' }, 401);
+      device.lastSeen = Date.now();
+      await write('device', n, device, 90);
+      await write('result', n, { ...(body?.result || {}), command_id: body?.command_id, receivedAt: Date.now() }, 300);
+      return json({ ok: true });
+    }
+
+    if (action === 'last_result') return json({ ok: true, result: await read('result', n) });
+
+    return json({ ok: false, error: 'Acción desconocida' }, 400);
+  } catch (error) {
+    return json({ ok: false, error: String(error?.message || error) }, 500);
   }
-  if(a==='command_result'){
-    if(!d||b.token!==d.token)return json({ok:false,error:'Token inválido'},401);
-    d.lastSeen=Date.now();await write('device',n,d,90);await write('result',n,{...(b.result||{}),command_id:b.command_id,receivedAt:Date.now()},300);return json({ok:true});
-  }
-  if(a==='last_result')return json({ok:true,result:await read('result',n)});
-  return json({ok:false,error:'Acción desconocida'},400);
 }
