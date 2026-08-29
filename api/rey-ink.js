@@ -1,17 +1,19 @@
-const RELAY='https://rnduuuiskfuikzuepvnw.supabase.co/functions/v1/rey-ink-webrtc';
-const headers={'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store, no-cache, must-revalidate','Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'content-type, authorization, apikey'};
+const RELAY='https://rnduuuiskfuikzuepvnw.supabase.co/functions/v1/rey-ink-browser';
+const headers={'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store, no-cache, must-revalidate','Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'content-type, authorization, x-pc-token, x-phone-token, x-pc-user, x-pc-password'};
 function send(res,body,status=200){res.statusCode=status;for(const[k,v]of Object.entries(headers))res.setHeader(k,v);res.end(JSON.stringify(body))}
+function forwardHeaders(req){const h={'content-type':req.headers['content-type']||'application/json'};for(const k of ['x-pc-token','x-phone-token','x-pc-user','x-pc-password','authorization','apikey']){if(req.headers[k])h[k]=req.headers[k]}return h}
 export default async function handler(req,res){
   if(req.method==='OPTIONS')return send(res,{ok:true});
   try{
+    const u=new URL(req.url,'https://rey-ink-browser.vercel.app');
+    const fh=forwardHeaders(req);
     if(req.method==='GET'){
-      const u=new URL(req.url,'https://rey-ink-browser.vercel.app');
-      const r=await fetch(RELAY+u.search,{cache:'no-store'});
-      const text=await r.text();
-      res.statusCode=r.status;for(const[k,v]of Object.entries(headers))res.setHeader(k,v);return res.end(text);
+      const r=await fetch(RELAY+u.search,{headers:fh,cache:'no-store'});
+      const text=await r.text();res.statusCode=r.status;for(const[k,v]of Object.entries(headers))res.setHeader(k,v);return res.end(text);
     }
+    if(req.method!=='POST')return send(res,{ok:false,error:'Método no permitido'},405);
     const body=req.body&&typeof req.body==='object'?req.body:await new Promise((resolve,reject)=>{let raw='';req.on('data',c=>raw+=c);req.on('end',()=>{try{resolve(raw?JSON.parse(raw):{})}catch(e){reject(e)}});req.on('error',reject)});
-    const r=await fetch(RELAY,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),cache:'no-store'});
+    const r=await fetch(RELAY,{method:'POST',headers:fh,body:JSON.stringify(body),cache:'no-store'});
     const text=await r.text();res.statusCode=r.status;for(const[k,v]of Object.entries(headers))res.setHeader(k,v);return res.end(text);
   }catch(e){return send(res,{ok:false,error:String(e?.message||e)},500)}
 }
