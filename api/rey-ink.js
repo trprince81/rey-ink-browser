@@ -1,37 +1,17 @@
-export const runtime='nodejs';
-const mem=globalThis.__reyInkDevicesV9||(globalThis.__reyInkDevicesV9={devices:new Map(),commands:new Map(),results:new Map(),commandResults:new Map(),webrtc:new Map()});
-const key=(kind,slot)=>`reyink:v9:${kind}:${slot}`;
-const headers={'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store, no-cache, must-revalidate','Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'content-type'};
-const online=d=>!!d&&Date.now()-Number(d.lastSeen||0)<30000;
-function send(res,body,status=200){if(res.headersSent)return;res.statusCode=status;for(const[k,v]of Object.entries(headers))res.setHeader(k,v);res.end(JSON.stringify(body))}
-async function bodyOf(req){if(req?.body&&typeof req.body==='object')return req.body;let raw='';for await(const c of req)raw+=c;if(!raw)return{};return JSON.parse(raw)}
-function storageName(){return process.env.KV_REST_API_URL&&process.env.KV_REST_API_TOKEN?'vercel-kv':'memory'}
-async function kv(command,args=[]){const u=process.env.KV_REST_API_URL,tok=process.env.KV_REST_API_TOKEN;if(!u||!tok)return null;const c=new AbortController(),tm=setTimeout(()=>c.abort(),1500);try{const r=await fetch(u,{method:'POST',headers:{Authorization:`Bearer ${tok}`,'content-type':'application/json'},body:JSON.stringify([command,...args]),cache:'no-store',signal:c.signal});if(!r.ok)return null;const d=await r.json();return d?.result??null}catch{return null}finally{clearTimeout(tm)}}
-async function read(kind,slot){const v=await kv('GET',[key(kind,slot)]);if(v!==null&&v!==undefined){try{return JSON.parse(v)}catch{return null}}return mem[kind]?.get(Number(slot))||null}
-async function write(kind,slot,value,ttl=90){const v=await kv('SET',[key(kind,slot),JSON.stringify(value),'EX',ttl]);if(v===null){(mem[kind]||(mem[kind]=new Map())).set(Number(slot),value)}}
-async function remove(kind,slot){const v=await kv('DEL',[key(kind,slot)]);if(v===null)mem[kind]?.delete(Number(slot))}
-async function devices(){const out=[];for(let i=1;i<=20;i++){const d=await read('device',i);out.push({pc_slot:i,is_online:online(d),last_seen:d?.lastSeen||null,state:d?.state||null,session_id:d?.session||null})}return out}
-export default async function handler(req,res){try{
-if(req.method==='OPTIONS')return send(res,{ok:true,service:'rey-ink'});
-const u=new URL(String(req.url||'/'),'https://rey-ink-browser.vercel.app');const q=String(u.searchParams.get('action')||'').trim();
-if(req.method==='GET'){
- if(q==='health'||!q)return send(res,{ok:true,service:'rey-ink',version:'10.0-webrtc',storage:storageName(),time:Date.now()});
- if(q==='list_devices')return send(res,{ok:true,devices:await devices(),storage:storageName()});
- const n=Number(u.searchParams.get('pc_slot'));const sess=String(u.searchParams.get('session')||'');
- if(q==='last_result'){if(!Number.isInteger(n)||n<1||n>20)return send(res,{ok:false,error:'PC inválida'},400);return send(res,{ok:true,result:await read('result',n),storage:storageName()})}
- if(q==='webrtc_offer'){const d=await read('device',n);if(!d||!online(d)||sess!==d.session)return send(res,{ok:false,error:'Sesión inválida o PC sin conexión'},409);const sig=await read('webrtc',n);return send(res,{ok:true,offer:sig?.offer||null})}
- if(q==='webrtc_answer'){const d=await read('device',n);if(!d||sess!==d.session)return send(res,{ok:false,error:'Sesión inválida'},401);const sig=await read('webrtc',n);return send(res,{ok:true,answer:sig?.answer||null})}
- return send(res,{ok:false,error:'Acción GET desconocida'},400)
+const RELAY='https://rnduuuiskfuikzuepvnw.supabase.co/functions/v1/rey-ink-webrtc';
+const headers={'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store, no-cache, must-revalidate','Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'content-type, authorization, apikey'};
+function send(res,body,status=200){res.statusCode=status;for(const[k,v]of Object.entries(headers))res.setHeader(k,v);res.end(JSON.stringify(body))}
+export default async function handler(req,res){
+  if(req.method==='OPTIONS')return send(res,{ok:true});
+  try{
+    if(req.method==='GET'){
+      const u=new URL(req.url,'https://rey-ink-browser.vercel.app');
+      const r=await fetch(RELAY+u.search,{cache:'no-store'});
+      const text=await r.text();
+      res.statusCode=r.status;for(const[k,v]of Object.entries(headers))res.setHeader(k,v);return res.end(text);
+    }
+    const body=req.body&&typeof req.body==='object'?req.body:await new Promise((resolve,reject)=>{let raw='';req.on('data',c=>raw+=c);req.on('end',()=>{try{resolve(raw?JSON.parse(raw):{})}catch(e){reject(e)}});req.on('error',reject)});
+    const r=await fetch(RELAY,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),cache:'no-store'});
+    const text=await r.text();res.statusCode=r.status;for(const[k,v]of Object.entries(headers))res.setHeader(k,v);return res.end(text);
+  }catch(e){return send(res,{ok:false,error:String(e?.message||e)},500)}
 }
-if(req.method!=='POST')return send(res,{ok:false,error:'Método no permitido'},405);let b;try{b=await bodyOf(req)}catch(e){return send(res,{ok:false,error:String(e.message||e)},400)}
-const a=String(b?.action||'').trim();if(a==='health')return send(res,{ok:true,service:'rey-ink',version:'10.0-webrtc',storage:storageName(),time:Date.now()});if(a==='list_devices')return send(res,{ok:true,devices:await devices(),storage:storageName()});
-const n=Number(b?.pc_slot);if(!Number.isInteger(n)||n<1||n>20)return send(res,{ok:false,error:'PC inválida'},400);
-if(a==='register_device'||a==='heartbeat'){const old=await read('device',n),token=String(b?.token||old?.token||crypto.randomUUID()),session=String(old?.session||crypto.randomUUID()),d={pc_slot:n,token,session,lastSeen:Date.now(),state:b?.state||old?.state||null};await write('device',n,d,120);return send(res,{ok:true,pc_slot:n,token,session_id:session,is_online:true,storage:storageName()})}
-const d=await read('device',n);if(a==='get_state')return send(res,{ok:true,pc_slot:n,is_online:online(d),state:d?.state||null,session_id:d?.session||null,storage:storageName()});
-if(a==='webrtc_offer'){if(!d||b?.session!==d.session||b?.token!==d.token)return send(res,{ok:false,error:'Sesión/token inválidos'},401);await write('webrtc',n,{offer:b.offer||null,answer:null,updatedAt:Date.now()},120);return send(res,{ok:true})}
-if(a==='webrtc_answer'){if(!d||b?.session!==d.session)return send(res,{ok:false,error:'Sesión inválida'},401);const sig=await read('webrtc',n)||{};sig.answer=b.answer||null;sig.updatedAt=Date.now();await write('webrtc',n,sig,120);return send(res,{ok:true})}
-if(a==='command'){if(!online(d))return send(res,{ok:false,error:'PC sin conexión'},409);if(b?.token&&b.token!==d.token)return send(res,{ok:false,error:'Token inválido'},401);const allowed=['get_state','reload','back','forward','new_tab','close_tab','navigate','click','double_click','right_click','type','scroll','drag','key','start_screen','stop_screen','autoclick_start','autoclick_stop'];const cmd=String(b?.command||'').toLowerCase().trim();if(!allowed.includes(cmd))return send(res,{ok:false,error:'Comando no permitido'},400);const id=crypto.randomUUID();await write('command',n,{id,command:cmd,payload:b?.payload||{},createdAt:Date.now()},60);return send(res,{ok:true,command_id:id,command:cmd})}
-if(a==='poll_command'){if(!d||b?.token!==d.token)return send(res,{ok:false,error:'Token inválido'},401);d.lastSeen=Date.now();await write('device',n,d,120);const cmd=await read('command',n);if(!cmd)return send(res,{ok:true,command:null});await remove('command',n);return send(res,{ok:true,command:cmd})}
-if(a==='command_result'){if(!d||b?.token!==d.token)return send(res,{ok:false,error:'Token inválido'},401);d.lastSeen=Date.now();await write('device',n,d,120);const result={...(b?.result||{}),command_id:b?.command_id,receivedAt:Date.now()};if(String(b?.command_id||'')==='__screen__')await write('result',n,result,300);else await write('commandResult',n,result,90);return send(res,{ok:true})}
-return send(res,{ok:false,error:'Acción desconocida'},400)
-}catch(e){return send(res,{ok:false,error:String(e?.message||e)},500)}}
