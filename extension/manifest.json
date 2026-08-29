@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Rey Ink Control",
-  "version": "4.8.3",
+  "version": "4.8.4",
   "description": "Control remoto real de una pestaña de Chrome mediante WebRTC + CDP.",
   "permissions": [
     "tabs",
