@@ -1,17 +1,24 @@
 # 👑 Rey ink — Actualizador
 
-Nueva base limpia, independiente del sistema anterior.
+Construcción limpia e independiente.
 
-## Arquitectura
-- Panel web en Vercel.
-- API propia.
-- Registro de dispositivos.
-- Enlace privado por dispositivo.
-- Canal de comandos entre panel y extensión.
-- Editor de posts y automatizador como módulos separados.
+## Primera fase implementada
+- Dashboard futurista tipo PS5.
+- Registro de dispositivos propios.
+- Código único por dispositivo.
+- Link privado individual para control desde otro dispositivo.
+- Estado online/offline y estado del actualizador.
+- Controles remotos: iniciar, detener, bump y MY POSTS.
+- Configuración del intervalo del actualizador.
+- Base de datos propia en Supabase, separada del sistema de terceros.
 
-## Flujo del actualizador
-BUMP TO TOP → 20–30 segundos → MY POSTS → 16 minutos → repetir.
+## Próximo módulo
+Conectar la extensión Chrome al canal de comandos y después construir el editor completo de posts.
 
-## Principio
-No reutilizar backend, tokens, licencias ni datos de terceros. Esta rama es una reconstrucción propia para evitar arrastrar problemas de la implementación anterior.
+## Variables de Vercel
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `REY_INK_ADMIN_KEY`
+- `PUBLIC_BASE_URL`
+
+Nunca pongas `SUPABASE_SERVICE_ROLE_KEY` dentro del frontend o de la extensión.
