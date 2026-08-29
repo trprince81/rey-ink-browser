@@ -1,41 +1,148 @@
-const API = 'https://rey-ink-browser.vercel.app/api/rey-ink';
-let polling = false;
-let screenRunning = false;
-let autoClickTimer = null;
-const wait = ms => new Promise(r => setTimeout(r, ms));
-async function api(action, body = {}) { const c=new AbortController(),t=setTimeout(()=>c.abort(),7000); try { const r=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,...body}),cache:'no-store',signal:c.signal}); const d=await r.json(); if(!r.ok||d.ok===false) throw Error(d.error||`HTTP ${r.status}`); return d; } finally { clearTimeout(t); } }
-async function cfg(){ return (await chrome.storage.local.get('reyInkRemote')).reyInkRemote||null; }
-async function findWebTab(){ const s=await chrome.storage.local.get('reyInkControlledTabId'); if(s.reyInkControlledTabId){ try{const t=await chrome.tabs.get(Number(s.reyInkControlledTabId)); if(t?.id&&/^https?:/i.test(t.url||'')) return t;}catch{} } const tabs=await chrome.tabs.query({}); const c=tabs.filter(t=>t?.id&&/^https?:/i.test(t.url||'')); c.sort((a,b)=>Number(b.lastAccessed||0)-Number(a.lastAccessed||0)); return c[0]||null; }
-async function activeTab(){ const t=await findWebTab(); if(t?.id) await setTab(t.id); return t; }
-async function setTab(id){ await chrome.storage.local.set({reyInkControlledTabId:Number(id)}); }
-async function attach(id){ try{await chrome.debugger.attach({tabId:id},'1.3');}catch(e){if(!String(e.message||e).toLowerCase().includes('already attached'))throw e;} }
-async function cdp(id,method,params={}){await attach(id);return chrome.debugger.sendCommand({tabId:id},method,params);}
-async function prepare(id){await cdp(id,'Page.enable');await cdp(id,'Runtime.enable');await cdp(id,'Input.setIgnoreInputEvents',{ignore:false});}
-async function viewport(id){const m=await cdp(id,'Page.getLayoutMetrics');const v=m.cssVisualViewport||m.visualViewport||{};return{width:Number(v.clientWidth||v.width)||1280,height:Number(v.clientHeight||v.height)||720};}
-async function mouse(id,type,p){return cdp(id,'Input.dispatchMouseEvent',{type,...p});}
-async function clickAt(id,x,y,button='left',count=1){await prepare(id);await cdp(id,'Page.bringToFront');await mouse(id,'mouseMoved',{x,y,button:'none',buttons:0});await mouse(id,'mousePressed',{x,y,button,buttons:button==='left'?1:button==='right'?2:4,clickCount:count});await mouse(id,'mouseReleased',{x,y,button,buttons:0,clickCount:count});}
-async function scrollAt(id,x,y,dx,dy){await prepare(id);await cdp(id,'Page.bringToFront');await mouse(id,'mouseWheel',{x,y,deltaX:dx,deltaY:dy});}
-async function dragAt(id,a,b){await prepare(id);await cdp(id,'Page.bringToFront');await mouse(id,'mouseMoved',{x:a.x,y:a.y,button:'none',buttons:0});await mouse(id,'mousePressed',{x:a.x,y:a.y,button:'left',buttons:1,clickCount:1});for(let i=1;i<=30;i++)await mouse(id,'mouseMoved',{x:a.x+(b.x-a.x)*i/30,y:a.y+(b.y-a.y)*i/30,button:'left',buttons:1});await mouse(id,'mouseReleased',{x:b.x,y:b.y,button:'left',buttons:0,clickCount:1});}
-async function keyAt(id,p){await prepare(id);const key=String(p.key||'Enter'),code=String(p.code||key);await cdp(id,'Input.dispatchKeyEvent',{type:'keyDown',key,code,text:String(p.text||''),unmodifiedText:String(p.text||'')});await cdp(id,'Input.dispatchKeyEvent',{type:'keyUp',key,code});}
-async function execute(cmd){const p=cmd.payload||{},t=await activeTab();if(cmd.command!=='get_state'&&!t?.id)throw Error('No hay una pestaña web controlada.');if(t?.id)await setTab(t.id);const id=t?.id;switch(cmd.command){case'get_state':return{ok:true,tabId:t?.id||null,url:t?.url||'',title:t?.title||'',width:t?.width||0,height:t?.height||0};case'click':{const v=await viewport(id);await clickAt(id,Number(p.nx)*v.width,Number(p.ny)*v.height,p.button||'left',Number(p.clickCount)||1);return{ok:true};}case'double_click':{const v=await viewport(id);await clickAt(id,Number(p.nx)*v.width,Number(p.ny)*v.height,'left',2);return{ok:true};}case'right_click':{const v=await viewport(id);await clickAt(id,Number(p.nx)*v.width,Number(p.ny)*v.height,'right',1);return{ok:true};}case'drag':{const v=await viewport(id);await dragAt(id,{x:Number(p.nx1)*v.width,y:Number(p.ny1)*v.height},{x:Number(p.nx2)*v.width,y:Number(p.ny2)*v.height});return{ok:true};}case'scroll':{const v=await viewport(id);await scrollAt(id,Number(p.nx)*v.width,Number(p.ny)*v.height,Number(p.dx)||0,Number(p.dy)||0);return{ok:true};}case'type':await prepare(id);await cdp(id,'Input.insertText',{text:String(p.text||'')});return{ok:true};case'key':await keyAt(id,p);return{ok:true};case'autoclick_start':await startAutoClick(id,p.nx,p.ny,p.interval);return{ok:true};case'autoclick_stop':await stopAutoClick();return{ok:true};case'back':await chrome.tabs.goBack(id);return{ok:true};case'forward':await chrome.tabs.goForward(id);return{ok:true};case'reload':await chrome.tabs.reload(id);return{ok:true};case'new_tab':{const n=await chrome.tabs.create({url:p.url||'https://www.google.com',active:true});await setTab(n.id);return{ok:true,tabId:n.id};}case'navigate':{let u=String(p.url||'').trim();if(!u)throw Error('URL vacía');if(!/^https?:/i.test(u))u='https://'+u;await chrome.tabs.update(id,{url:u,active:true});return{ok:true,url:u};}case'close_tab':await stopAutoClick();await chrome.tabs.remove(id);await chrome.storage.local.remove('reyInkControlledTabId');return{ok:true};case'start_screen':screenLoop();return{ok:true};case'stop_screen':screenRunning=false;return{ok:true};default:throw Error('Comando no reconocido: '+cmd.command);}}
-async function startAutoClick(id,nx,ny,interval){await stopAutoClick();const v=await viewport(id),x=Number(nx)*v.width,y=Number(ny)*v.height,ms=Math.max(100,Math.min(3600000,Number(interval)||500));await clickAt(id,x,y);autoClickTimer=setInterval(()=>clickAt(id,x,y).catch(()=>{}),ms);await chrome.storage.local.set({reyInkLiveAutoClick:{active:true,tabId:id,nx:Number(nx),ny:Number(ny),interval:ms}});}
-async function stopAutoClick(){if(autoClickTimer)clearInterval(autoClickTimer);autoClickTimer=null;await chrome.storage.local.set({reyInkLiveAutoClick:{active:false}});}
-async function runRoutine(r){const t=await activeTab();if(!t?.id||!Array.isArray(r?.actions)||!r.actions.length)return false;for(const a of r.actions){const v=await viewport(t.id);await clickAt(t.id,Number(a.x)*v.width,Number(a.y)*v.height);await wait(Math.max(0,Number(a.delayMs)||250));}return true;}
-async function scheduleRoutine(index,minutes){const n=Math.max(.5,Number(minutes)||16);await chrome.alarms.create('reyink-autoclick',{delayInMinutes:n,periodInMinutes:n,persistAcrossSessions:true});await chrome.storage.local.set({reyInkAutoSchedule:{enabled:true,index:Number(index),minutes:n}});}
-async function stopSchedule(){await chrome.alarms.clear('reyink-autoclick');await chrome.storage.local.set({reyInkAutoSchedule:{enabled:false}});}
-async function register(){const s=await chrome.storage.local.get(['reyInkPcSlot','reyInkRemote']),pcSlot=Number(s.reyInkPcSlot);if(!Number.isInteger(pcSlot)||pcSlot<1||pcSlot>20)throw Error('Selecciona PC1–PC20.');const t=await activeTab(),token=s.reyInkRemote?.token||crypto.randomUUID(),r=await api('register_device',{pc_slot:pcSlot,token,state:{browser:navigator.userAgent,tabId:t?.id||null,url:t?.url||'',title:t?.title||''}});await chrome.storage.local.set({reyInkRemote:{enabled:true,token:r.token||token,pcSlot,api:API},reyInkRelayStatus:{connected:true,lastConnected:Date.now()}});startPolling();return{ok:true,pcSlot};}
-async function heartbeat(){const s=await cfg();if(!s?.enabled)return;try{const t=await activeTab();await api('heartbeat',{pc_slot:s.pcSlot,token:s.token,state:{tabId:t?.id||null,url:t?.url||'',title:t?.title||''}});await chrome.storage.local.set({reyInkRelayStatus:{connected:true,lastConnected:Date.now()}});}catch(e){await chrome.storage.local.set({reyInkRelayStatus:{connected:false,error:String(e.message||e)}});}}
-async function poll(){const s=await cfg();if(!s?.enabled)return;try{const d=await api('poll_command',{pc_slot:s.pcSlot,token:s.token});if(d.command){const result=await execute(d.command).catch(e=>({ok:false,error:String(e.message||e)}));await api('command_result',{pc_slot:s.pcSlot,token:s.token,command_id:d.command.id,result}).catch(()=>{});}}catch{}}
-async function loop(){if(polling)return;polling=true;while(polling){await poll();await wait(300);}polling=false;}function startPolling(){loop().catch(()=>{polling=false;});}
-async function capture(){const s=await cfg();if(!screenRunning||!s?.enabled)return;const t=await activeTab();if(!t?.id)return;try{const image=await chrome.tabs.captureVisibleTab(t.windowId,{format:'jpeg',quality:70});await api('command_result',{pc_slot:s.pcSlot,token:s.token,command_id:'__screen__',result:{screen:true,image,ts:Date.now(),url:t.url||'',title:t.title||'',width:t.width||0,height:t.height||0}});}catch{}}
-async function screenLoop(){if(screenRunning)return;screenRunning=true;while(screenRunning){await capture();await wait(400);}screenRunning=false;}
-async function setReyIcon(){try{const sizes=[16,32,48,128],imageData={};for(const size of sizes){const c=new OffscreenCanvas(size,size),x=c.getContext('2d'),g=x.createLinearGradient(0,0,size,size);g.addColorStop(0,'#8b3dff');g.addColorStop(1,'#4c16c9');x.fillStyle=g;x.beginPath();x.roundRect(0,0,size,size,Math.max(3,size*.22));x.fill();x.fillStyle='#fff';x.beginPath();x.moveTo(size*.18,size*.34);x.lineTo(size*.30,size*.67);x.lineTo(size*.40,size*.48);x.lineTo(size*.50,size*.67);x.lineTo(size*.60,size*.48);x.lineTo(size*.70,size*.67);x.lineTo(size*.82,size*.34);x.lineTo(size*.72,size*.78);x.lineTo(size*.28,size*.78);x.closePath();x.fill();imageData[size]=x.getImageData(0,0,size,size);}await chrome.action.setIcon({imageData});await chrome.action.setTitle({title:'Rey Ink — Control remoto real'});}catch{}}
-chrome.alarms.onAlarm.addListener(async alarm=>{if(alarm.name!=='reyink-autoclick')return;const s=await chrome.storage.local.get('reyInkAutoSchedule'),r=(await chrome.storage.local.get('reyInkAutoRoutines')).reyInkAutoRoutines||[];if(s.reyInkAutoSchedule?.enabled)await runRoutine(r[s.reyInkAutoSchedule.index]);});
-chrome.runtime.onMessage.addListener((m,sender,send)=>{(async()=>{try{switch(m.type){case'SET_PC_SLOT':{const n=Number(m.pcSlot);if(!Number.isInteger(n)||n<1||n>20)throw Error('PC inválida');await chrome.storage.local.set({reyInkPcSlot:n});return{ok:true,pcSlot:n};}case'REGISTER_REMOTE':return register();case'DISCONNECT_REMOTE':polling=false;screenRunning=false;await stopAutoClick();await stopSchedule();await chrome.storage.local.set({reyInkRemote:{enabled:false},reyInkRelayStatus:{connected:false}});return{ok:true};case'GET_STATE':{const t=await activeTab(),s=await chrome.storage.local.get(['reyInkPcSlot','reyInkRelayStatus','reyInkAutoRoutines','reyInkAutoDraft','reyInkAutoSchedule','reyInkLiveAutoClick']);return{ok:true,tabId:t?.id||null,url:t?.url||'',title:t?.title||'',pcSlot:s.reyInkPcSlot||null,relayStatus:s.reyInkRelayStatus||null,routines:s.reyInkAutoRoutines||[],draft:s.reyInkAutoDraft||[],schedule:s.reyInkAutoSchedule||{enabled:false},liveAutoClick:s.reyInkLiveAutoClick||{active:false}};}case'START_SCREEN':screenLoop();return{ok:true};case'STOP_SCREEN':screenRunning=false;return{ok:true};case'RELOAD':return execute({command:'reload',payload:{}});case'GO_BACK':return execute({command:'back',payload:{}});case'GO_FORWARD':return execute({command:'forward',payload:{}});case'NEW_TAB':return execute({command:'new_tab',payload:{}});case'CLOSE_TAB':return execute({command:'close_tab',payload:{}});case'NAVIGATE':return execute({command:'navigate',payload:{url:m.url}});case'CLICK':return execute({command:'click',payload:m});case'DOUBLE_CLICK':return execute({command:'double_click',payload:m});case'RIGHT_CLICK':return execute({command:'right_click',payload:m});case'DRAG':return execute({command:'drag',payload:m});case'SCROLL':return execute({command:'scroll',payload:m});case'TYPE':return execute({command:'type',payload:{text:m.text}});case'KEY':return execute({command:'key',payload:{key:m.key,code:m.code,text:m.text}});case'AUTO_START':return execute({command:'autoclick_start',payload:m});case'AUTO_STOP':return execute({command:'autoclick_stop',payload:{}});case'AUTO_RECORD_START':{const t=await activeTab();if(!t?.id)throw Error('Abre una página web primero.');await chrome.scripting.executeScript({target:{tabId:t.id},files:['content.js']}).catch(()=>{});await chrome.tabs.sendMessage(t.id,{type:'AUTO_RECORD_START'}).catch(()=>{});await chrome.storage.local.set({reyInkAutoDraft:[]});return{ok:true,tabId:t.id};}case'AUTO_RECORD_STOP':{const t=await activeTab();if(t?.id)await chrome.tabs.sendMessage(t.id,{type:'AUTO_RECORD_STOP'}).catch(()=>{});return{ok:true};}case'SAVE_AUTO_ROUTINE':{const s=await chrome.storage.local.get('reyInkAutoDraft'),r=await chrome.storage.local.get('reyInkAutoRoutines'),list=r.reyInkAutoRoutines||[];list.push({name:String(m.name||'Auto clic'),actions:s.reyInkAutoDraft||[],createdAt:Date.now()});await chrome.storage.local.set({reyInkAutoRoutines:list,reyInkAutoDraft:[]});return{ok:true,routines:list};}case'SCHEDULE_AUTO':await scheduleRoutine(Number(m.index),Number(m.minutes)||16);return{ok:true};case'STOP_SCHEDULE':await stopSchedule();return{ok:true};case'RUN_ROUTINE_NOW':{const r=(await chrome.storage.local.get('reyInkAutoRoutines')).reyInkAutoRoutines||[];return{ok:await runRoutine(r[Number(m.index)])};}case'DELETE_ROUTINE':{const r=(await chrome.storage.local.get('reyInkAutoRoutines')).reyInkAutoRoutines||[];r.splice(Number(m.index),1);await chrome.storage.local.set({reyInkAutoRoutines:r});await stopSchedule();return{ok:true,routines:r};}default:return{ok:false,error:'Comando no reconocido: '+m.type};}}catch(e){return{ok:false,error:String(e.message||e)}}})().then(send);return true;});
-chrome.runtime.onMessage.addListener(m=>{if(m.type!=='AUTO_CLICK_RECORDED')return;chrome.storage.local.get('reyInkAutoDraft').then(x=>{const a=x.reyInkAutoDraft||[],last=a[a.length-1];a.push({x:Number(m.x),y:Number(m.y),delayMs:last?250:0,url:m.url||'',title:m.title||''});return chrome.storage.local.set({reyInkAutoDraft:a});});});
-chrome.runtime.onInstalled.addListener(async()=>{await chrome.storage.local.set({reyInkVersion:'4.5.1'});await setReyIcon();const s=await chrome.storage.local.get('reyInkRemote');if(s.reyInkRemote?.enabled)startPolling();});
-chrome.runtime.onStartup.addListener(()=>{setReyIcon();startPolling();heartbeat();});
+const API='https://rey-ink-browser.vercel.app/api/rey-ink';
+let polling=false;
+let screenRunning=false;
+let autoClickTimer=null;
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+
+async function api(action,body={}){
+  const c=new AbortController(), t=setTimeout(()=>c.abort(),8000);
+  try{
+    const r=await fetch(API,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,...body}),cache:'no-store',signal:c.signal});
+    const d=await r.json().catch(()=>({error:'Respuesta inválida'}));
+    if(!r.ok||d.ok===false) throw Error(d.error||`HTTP ${r.status}`);
+    return d;
+  }finally{clearTimeout(t)}
+}
+async function cfg(){return (await chrome.storage.local.get('reyInkRemote')).reyInkRemote||null}
+async function setTab(id){if(id)await chrome.storage.local.set({reyInkControlledTabId:Number(id)})}
+async function findWebTab(){
+  const s=await chrome.storage.local.get('reyInkControlledTabId');
+  if(s.reyInkControlledTabId){try{const t=await chrome.tabs.get(Number(s.reyInkControlledTabId));if(t?.id&&/^https?:/i.test(t.url||''))return t}catch{}}
+  const tabs=await chrome.tabs.query({});
+  const c=tabs.filter(t=>t?.id&&/^https?:/i.test(t.url||''));
+  c.sort((a,b)=>Number(b.lastAccessed||0)-Number(a.lastAccessed||0));
+  return c[0]||null;
+}
+async function activeTab(){const t=await findWebTab();if(t?.id)await setTab(t.id);return t}
+async function attach(id){
+  try{await chrome.debugger.attach({tabId:id},'1.3')}
+  catch(e){if(!/already attached/i.test(String(e?.message||e)))throw e}
+}
+async function cdp(id,method,params={}){
+  await attach(id);
+  try{return await chrome.debugger.sendCommand({tabId:id},method,params)}
+  catch(e){
+    if(/detached|not attached|target closed/i.test(String(e?.message||e))){try{await chrome.debugger.detach({tabId:id})}catch{};await attach(id);return chrome.debugger.sendCommand({tabId:id},method,params)}
+    throw e
+  }
+}
+async function prepare(id){await cdp(id,'Page.enable');await cdp(id,'Runtime.enable');await cdp(id,'Input.setIgnoreInputEvents',{ignore:false})}
+async function viewport(id){
+  const m=await cdp(id,'Page.getLayoutMetrics'),v=m?.cssVisualViewport||m?.visualViewport||{};
+  return {width:Number(v.clientWidth||v.width)||1280,height:Number(v.clientHeight||v.height)||720}
+}
+async function mouse(id,type,p){return cdp(id,'Input.dispatchMouseEvent',{type,...p})}
+async function clickAt(id,x,y,button='left',count=1){
+  await prepare(id);await mouse(id,'mouseMoved',{x,y,button:'none',buttons:0,pointerType:'mouse'});
+  const buttons=button==='left'?1:button==='right'?2:4;
+  await mouse(id,'mousePressed',{x,y,button,buttons,clickCount:count,pointerType:'mouse'});
+  await mouse(id,'mouseReleased',{x,y,button,buttons:0,clickCount:count,pointerType:'mouse'});
+}
+async function scrollAt(id,x,y,dx,dy){await prepare(id);await mouse(id,'mouseWheel',{x,y,deltaX:dx,deltaY:dy})}
+async function dragAt(id,a,b){
+  await prepare(id);await mouse(id,'mouseMoved',{x:a.x,y:a.y,button:'none',buttons:0,pointerType:'mouse'});
+  await mouse(id,'mousePressed',{x:a.x,y:a.y,button:'left',buttons:1,clickCount:1,pointerType:'mouse'});
+  for(let i=1;i<=30;i++)await mouse(id,'mouseMoved',{x:a.x+(b.x-a.x)*i/30,y:a.y+(b.y-a.y)*i/30,button:'left',buttons:1,pointerType:'mouse'});
+  await mouse(id,'mouseReleased',{x:b.x,y:b.y,button:'left',buttons:0,clickCount:1,pointerType:'mouse'});
+}
+async function keyAt(id,p){
+  await prepare(id);const key=String(p.key||'Enter'),code=String(p.code||key);
+  await cdp(id,'Input.dispatchKeyEvent',{type:'keyDown',key,code,text:String(p.text||''),unmodifiedText:String(p.text||'')});
+  await cdp(id,'Input.dispatchKeyEvent',{type:'keyUp',key,code});
+}
+async function captureBrowser(id){
+  await prepare(id);
+  const r=await cdp(id,'Page.captureScreenshot',{format:'jpeg',quality:68,fromSurface:true,captureBeyondViewport:false});
+  return 'data:image/jpeg;base64,'+r.data;
+}
+
+async function execute(cmd){
+  const p=cmd.payload||{},t=await activeTab();
+  if(cmd.command!=='get_state'&&!t?.id)throw Error('No hay una pestaña web controlada. Abre una página normal de Chrome.');
+  if(t?.id)await setTab(t.id);const id=t?.id;
+  switch(cmd.command){
+    case'get_state':return{ok:true,tabId:t?.id||null,url:t?.url||'',title:t?.title||'',width:t?.width||0,height:t?.height||0};
+    case'click':{const v=await viewport(id);await clickAt(id,Number(p.nx)*v.width,Number(p.ny)*v.height,p.button||'left',Number(p.clickCount)||1);return{ok:true}}
+    case'double_click':{const v=await viewport(id);await clickAt(id,Number(p.nx)*v.width,Number(p.ny)*v.height,'left',2);return{ok:true}}
+    case'right_click':{const v=await viewport(id);await clickAt(id,Number(p.nx)*v.width,Number(p.ny)*v.height,'right',1);return{ok:true}}
+    case'drag':{const v=await viewport(id);await dragAt(id,{x:Number(p.nx1)*v.width,y:Number(p.ny1)*v.height},{x:Number(p.nx2)*v.width,y:Number(p.ny2)*v.height});return{ok:true}}
+    case'scroll':{const v=await viewport(id);await scrollAt(id,Number(p.nx)*v.width,Number(p.ny)*v.height,Number(p.dx)||0,Number(p.dy)||0);return{ok:true}}
+    case'type':await prepare(id);await cdp(id,'Input.insertText',{text:String(p.text||'')});return{ok:true}
+    case'key':await keyAt(id,p);return{ok:true}
+    case'autoclick_start':await startAutoClick(id,p.nx,p.ny,p.interval);return{ok:true}
+    case'autoclick_stop':await stopAutoClick();return{ok:true}
+    case'back':await chrome.tabs.goBack(id);return{ok:true}
+    case'forward':await chrome.tabs.goForward(id);return{ok:true}
+    case'reload':await chrome.tabs.reload(id);return{ok:true}
+    case'new_tab':{const n=await chrome.tabs.create({url:p.url||'https://www.google.com',active:true});await setTab(n.id);return{ok:true,tabId:n.id}}
+    case'navigate':{let u=String(p.url||'').trim();if(!u)throw Error('URL vacía');if(!/^https?:/i.test(u))u='https://'+u;await chrome.tabs.update(id,{url:u,active:true});return{ok:true,url:u}}
+    case'close_tab':await stopAutoClick();await chrome.tabs.remove(id);await chrome.storage.local.remove('reyInkControlledTabId');return{ok:true}
+    case'start_screen':screenLoop();return{ok:true}
+    case'stop_screen':screenRunning=false;return{ok:true}
+    case'GET_BROWSER_VIEW':{const v=await viewport(id);return{ok:true,image:await captureBrowser(id),url:t?.url||'',title:t?.title||'',viewportWidth:v.width,viewportHeight:v.height}}
+    case'click_view':{await clickAt(id,Number(p.x),Number(p.y));return{ok:true}}
+    case'scroll_view':{const v=await viewport(id);await scrollAt(id,Number(p.x)||v.width/2,Number(p.y)||v.height/2,Number(p.dx)||0,Number(p.dy)||0);return{ok:true}}
+    case'drag_view':{await dragAt(id,{x:Number(p.x1),y:Number(p.y1)},{x:Number(p.x2),y:Number(p.y2)});return{ok:true}}
+    case'type_view':await prepare(id);await cdp(id,'Input.insertText',{text:String(p.text||'')});return{ok:true}
+    default:throw Error('Comando no reconocido: '+cmd.command)
+  }
+}
+
+async function startAutoClick(id,nx,ny,interval){
+  await stopAutoClick();const v=await viewport(id),x=Number(nx)*v.width,y=Number(ny)*v.height,ms=Math.max(100,Math.min(3600000,Number(interval)||500));
+  await clickAt(id,x,y);autoClickTimer=setInterval(()=>clickAt(id,x,y).catch(()=>{}),ms);
+  await chrome.storage.local.set({reyInkLiveAutoClick:{active:true,tabId:id,nx:Number(nx),ny:Number(ny),interval:ms}})
+}
+async function stopAutoClick(){if(autoClickTimer)clearInterval(autoClickTimer);autoClickTimer=null;await chrome.storage.local.set({reyInkLiveAutoClick:{active:false}})}
+async function runRoutine(r){const t=await activeTab();if(!t?.id||!Array.isArray(r?.actions)||!r.actions.length)return false;for(const a of r.actions){const v=await viewport(t.id);await clickAt(t.id,Number(a.x)*v.width,Number(a.y)*v.height);await wait(Math.max(0,Number(a.delayMs)||250))}return true}
+async function scheduleRoutine(index,minutes){const n=Math.max(.5,Number(minutes)||16);await chrome.alarms.create('reyink-autoclick',{delayInMinutes:n,periodInMinutes:n});await chrome.storage.local.set({reyInkAutoSchedule:{enabled:true,index:Number(index),minutes:n}})}
+async function stopSchedule(){await chrome.alarms.clear('reyink-autoclick');await chrome.storage.local.set({reyInkAutoSchedule:{enabled:false}})}
+
+async function register(){
+  const s=await chrome.storage.local.get(['reyInkPcSlot','reyInkRemote']),pcSlot=Number(s.reyInkPcSlot);
+  if(!Number.isInteger(pcSlot)||pcSlot<1||pcSlot>20)throw Error('Selecciona PC1–PC20.');
+  const t=await activeTab(),token=s.reyInkRemote?.token||crypto.randomUUID();
+  const r=await api('register_device',{pc_slot:pcSlot,token,state:{browser:navigator.userAgent,tabId:t?.id||null,url:t?.url||'',title:t?.title||''}});
+  await chrome.storage.local.set({reyInkRemote:{enabled:true,token:r.token||token,pcSlot,api:API},reyInkRelayStatus:{connected:true,lastConnected:Date.now()}});
+  startPolling();screenLoop();
+  return{ok:true,pcSlot}
+}
+async function heartbeat(){const s=await cfg();if(!s?.enabled)return;try{const t=await activeTab();await api('heartbeat',{pc_slot:s.pcSlot,token:s.token,state:{tabId:t?.id||null,url:t?.url||'',title:t?.title||''}});await chrome.storage.local.set({reyInkRelayStatus:{connected:true,lastConnected:Date.now()}})}catch(e){await chrome.storage.local.set({reyInkRelayStatus:{connected:false,error:String(e?.message||e)}})}}
+async function poll(){const s=await cfg();if(!s?.enabled)return;try{const d=await api('poll_command',{pc_slot:s.pcSlot,token:s.token});if(d.command){const result=await execute(d.command).catch(e=>({ok:false,error:String(e?.message||e)}));await api('command_result',{pc_slot:s.pcSlot,token:s.token,command_id:d.command.id,result}).catch(()=>{})}}catch{}}
+async function loop(){if(polling)return;polling=true;while(polling){await poll();await wait(250)}polling=false}function startPolling(){loop().catch(()=>{polling=false})}
+async function capture(){const s=await cfg();if(!screenRunning||!s?.enabled)return;const t=await activeTab();if(!t?.id)return;try{const image=await captureBrowser(t.id);await api('command_result',{pc_slot:s.pcSlot,token:s.token,command_id:'__screen__',result:{screen:true,image,ts:Date.now(),url:t.url||'',title:t.title||'',width:t.width||0,height:t.height||0}})}catch{}}
+async function screenLoop(){if(screenRunning)return;screenRunning=true;while(screenRunning){await capture();await wait(500)}screenRunning=false}
+async function setReyIcon(){try{const sizes=[16,32,48,128],imageData={};for(const size of sizes){const c=new OffscreenCanvas(size,size),x=c.getContext('2d');x.fillStyle='#7027ff';x.beginPath();x.roundRect(0,0,size,size,Math.max(3,size*.22));x.fill();x.fillStyle='#fff';x.font=`bold ${Math.floor(size*.55)}px sans-serif`;x.textAlign='center';x.textBaseline='middle';x.fillText('♛',size/2,size/2);imageData[size]=x.getImageData(0,0,size,size)}await chrome.action.setIcon({imageData});await chrome.action.setTitle({title:'Rey Ink — Control remoto real'})}catch{}}
+
+chrome.debugger.onDetach.addListener(({tabId})=>{chrome.storage.local.get('reyInkControlledTabId').then(s=>{if(Number(s.reyInkControlledTabId)===Number(tabId)&&screenRunning)screenRunning=false}).catch(()=>{})});
+chrome.alarms.onAlarm.addListener(async alarm=>{if(alarm.name!=='reyink-autoclick')return;const s=await chrome.storage.local.get('reyInkAutoSchedule'),r=(await chrome.storage.local.get('reyInkAutoRoutines')).reyInkAutoRoutines||[];if(s.reyInkAutoSchedule?.enabled)await runRoutine(r[s.reyInkAutoSchedule.index])});
+
+chrome.runtime.onMessage.addListener((m,sender,send)=>{(async()=>{try{switch(m.type){
+case'SET_PC_SLOT':{const n=Number(m.pcSlot);if(!Number.isInteger(n)||n<1||n>20)throw Error('PC inválida');await chrome.storage.local.set({reyInkPcSlot:n});return{ok:true,pcSlot:n}}
+case'REGISTER_REMOTE':return register();
+case'DISCONNECT_REMOTE':polling=false;screenRunning=false;await stopAutoClick();await stopSchedule();await chrome.storage.local.set({reyInkRemote:{enabled:false},reyInkRelayStatus:{connected:false}});return{ok:true};
+case'GET_STATE':{const t=await activeTab(),s=await chrome.storage.local.get(['reyInkPcSlot','reyInkRelayStatus','reyInkAutoRoutines','reyInkAutoDraft','reyInkAutoSchedule','reyInkLiveAutoClick']);return{ok:true,tabId:t?.id||null,url:t?.url||'',title:t?.title||'',pcSlot:s.reyInkPcSlot||null,relayStatus:s.reyInkRelayStatus||null,routines:s.reyInkAutoRoutines||[],draft:s.reyInkAutoDraft||[],schedule:s.reyInkAutoSchedule||{enabled:false},liveAutoClick:s.reyInkLiveAutoClick||{active:false}}}
+case'START_SCREEN':screenLoop();return{ok:true};case'STOP_SCREEN':screenRunning=false;return{ok:true};
+case'RELOAD':return execute({command:'reload',payload:{}});case'GO_BACK':return execute({command:'back',payload:{}});case'GO_FORWARD':return execute({command:'forward',payload:{}});case'NEW_TAB':return execute({command:'new_tab',payload:{}});case'CLOSE_TAB':return execute({command:'close_tab',payload:{}});case'NAVIGATE':return execute({command:'navigate',payload:{url:m.url}});
+case'CLICK':return execute({command:'click',payload:m});case'DOUBLE_CLICK':return execute({command:'double_click',payload:m});case'RIGHT_CLICK':return execute({command:'right_click',payload:m});case'DRAG':return execute({command:'drag',payload:m});case'SCROLL':return execute({command:'scroll',payload:m});case'TYPE':return execute({command:'type',payload:{text:m.text}});case'KEY':return execute({command:'key',payload:{key:m.key,code:m.code,text:m.text}});case'AUTO_START':return execute({command:'autoclick_start',payload:m});case'AUTO_STOP':return execute({command:'autoclick_stop',payload:{}});
+case'AUTO_RECORD_START':{const t=await activeTab();if(!t?.id)throw Error('Abre una página web primero.');await chrome.scripting.executeScript({target:{tabId:t.id},files:['content.js']}).catch(()=>{});await chrome.tabs.sendMessage(t.id,{type:'AUTO_RECORD_START'}).catch(()=>{});await chrome.storage.local.set({reyInkAutoDraft:[]});return{ok:true,tabId:t.id}}
+case'AUTO_RECORD_STOP':{const t=await activeTab();if(t?.id)await chrome.tabs.sendMessage(t.id,{type:'AUTO_RECORD_STOP'}).catch(()=>{});return{ok:true}}
+case'SAVE_AUTO_ROUTINE':{const s=await chrome.storage.local.get('reyInkAutoDraft'),r=await chrome.storage.local.get('reyInkAutoRoutines'),list=r.reyInkAutoRoutines||[];list.push({name:String(m.name||'Auto clic'),actions:s.reyInkAutoDraft||[],createdAt:Date.now()});await chrome.storage.local.set({reyInkAutoRoutines:list,reyInkAutoDraft:[]});return{ok:true,routines:list}}
+case'SCHEDULE_AUTO':await scheduleRoutine(Number(m.index),Number(m.minutes)||16);return{ok:true};case'STOP_SCHEDULE':await stopSchedule();return{ok:true};case'RUN_ROUTINE_NOW':{const r=(await chrome.storage.local.get('reyInkAutoRoutines')).reyInkAutoRoutines||[];return{ok:await runRoutine(r[Number(m.index)])}}case'DELETE_ROUTINE':{const r=(await chrome.storage.local.get('reyInkAutoRoutines')).reyInkAutoRoutines||[];r.splice(Number(m.index),1);await chrome.storage.local.set({reyInkAutoRoutines:r});await stopSchedule();return{ok:true,routines:r}}
+default:return{ok:false,error:'Comando no reconocido: '+m.type}}}catch(e){return{ok:false,error:String(e?.message||e)}}})().then(send);return true});
+chrome.runtime.onMessage.addListener(m=>{if(m.type!=='AUTO_CLICK_RECORDED')return;chrome.storage.local.get('reyInkAutoDraft').then(x=>{const a=x.reyInkAutoDraft||[],last=a[a.length-1];a.push({x:Number(m.x),y:Number(m.y),delayMs:last?250:0,url:m.url||'',title:m.title||''});return chrome.storage.local.set({reyInkAutoDraft:a})})});
+chrome.runtime.onInstalled.addListener(async()=>{await chrome.storage.local.set({reyInkVersion:'4.6.0'});await setReyIcon();const s=await chrome.storage.local.get('reyInkRemote');if(s.reyInkRemote?.enabled)startPolling()});
+chrome.runtime.onStartup.addListener(()=>{setReyIcon();startPolling();heartbeat()});
 setReyIcon();setInterval(heartbeat,15000);
-chrome.tabs.onActivated.addListener(async({tabId})=>{try{const t=await chrome.tabs.get(tabId);if(t?.id&&/^https?:/i.test(t.url||''))await setTab(t.id);}catch{}});
-chrome.tabs.onUpdated.addListener(async(tabId,changeInfo,tab)=>{if(changeInfo.status==='complete'&&tab?.id&&/^https?:/i.test(tab.url||'')){const s=await chrome.storage.local.get('reyInkControlledTabId');if(!s.reyInkControlledTabId)await setTab(tab.id);}});
-chrome.tabs.onRemoved.addListener(async id=>{const s=await chrome.storage.local.get('reyInkControlledTabId');if(Number(s.reyInkControlledTabId)===Number(id)){await stopAutoClick();await chrome.storage.local.remove('reyInkControlledTabId');}});
+chrome.tabs.onActivated.addListener(async({tabId})=>{try{const t=await chrome.tabs.get(tabId);if(t?.id&&/^https?:/i.test(t.url||''))await setTab(t.id)}catch{}});
+chrome.tabs.onRemoved.addListener(async tabId=>{const s=await chrome.storage.local.get('reyInkControlledTabId');if(Number(s.reyInkControlledTabId)===Number(tabId))await chrome.storage.local.remove('reyInkControlledTabId')});
