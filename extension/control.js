@@ -16,17 +16,16 @@ $('connect').onclick=async()=>{
     const tab=tabs.find(t=>t?.id&&/^https?:/i.test(t.url||''));
     if(!tab?.id)throw Error('Abre primero una página web normal en Chrome.');
 
-    // IMPORTANTE: getMediaStreamId se solicita directamente durante el clic de Conectar.
-    // Así Chrome conserva el gesto del usuario y no aparece el fallo de captura tardía.
-    let streamId;
-    try{streamId=await chrome.tabCapture.getMediaStreamId({targetTabId:Number(tab.id)});}
+    // Guarda la PC localmente y pide el stream inmediatamente.
+    // El registro de red ocurre en paralelo para que el streamId no expire.
+    chrome.storage.local.set({reyInkPcSlot:n});
+    const streamPromise=chrome.tabCapture.getMediaStreamId({targetTabId:Number(tab.id)});
+    const regPromise=msg('REGISTER_REMOTE');
+    let streamId,reg;
+    try{[streamId,reg]=await Promise.all([streamPromise,regPromise]);}
     catch(e){throw Error('Chrome no pudo capturar esta pestaña: '+(e?.message||e));}
-
-    let r=await msg('SET_PC_SLOT',{pcSlot:n});
-    if(!r?.ok)throw Error(r?.error||'No se pudo guardar la PC.');
-    const reg=await msg('REGISTER_REMOTE');
     if(!reg?.ok)throw Error(reg?.error||'No se pudo registrar la PC.');
-    r=await msg('WEBRTC_HOST',{streamId});
+    const r=await msg('WEBRTC_HOST',{streamId});
     if(!r?.ok)throw Error(r?.error||'No se pudo iniciar la transmisión WebRTC.');
     show('relay','🟢 PC'+n+' conectada · transmisión real activa',true);
     log('PC'+n+' conectada. Captura de pestaña iniciada.');
