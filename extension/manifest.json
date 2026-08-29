@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Rey Ink — Control Remoto",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "description": "Control remoto del navegador real desde Rey Ink.",
   "permissions": ["tabs", "storage", "alarms", "debugger"],
   "host_permissions": ["<all_urls>", "https://rey-ink-browser.vercel.app/*"],
