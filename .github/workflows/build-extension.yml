@@ -1,0 +1,25 @@
+name: Build Rey Ink extension
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate extension files
+        run: |
+          test -f extension/manifest.json
+          node --check extension/background.js
+          node --check extension/control.js
+          node --check extension/offscreen.js
+      - name: Package extension
+        run: |
+          cd extension
+          zip -r ../Rey_Ink_4.8.4_REAL.zip .
+      - name: Upload extension ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rey_Ink_4.8.4_REAL
+          path: Rey_Ink_4.8.4_REAL.zip
