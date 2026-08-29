@@ -1,14 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "Rey Ink",
-  "version": "2.3.2",
-  "description": "Rey Ink: selecciona PC1–PC20 y conecta automáticamente. Grabaciones guardadas como rutinas seleccionables.",
-  "permissions": ["activeTab","alarms","downloads","scripting","storage","tabs","webNavigation"],
-  "host_permissions": ["<all_urls>","https://rey-ink-browser.vercel.app/*"],
-  "action": {"default_title":"Abrir Rey Ink"},
-  "background": {"service_worker":"background.js"},
+  "name": "Rey Ink — Control Remoto",
+  "version": "3.5.0",
+  "description": "Rey Ink — control remoto del navegador con mouse virtual invisible, clic, arrastre, rueda, teclado, pantalla y grabación.",
+  "permissions": ["tabs", "scripting", "storage", "alarms", "debugger"],
+  "host_permissions": ["<all_urls>", "https://rey-ink-browser.vercel.app/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Abrir Rey Ink" },
   "content_scripts": [
-    {"matches":["<all_urls>"],"js":["recorder.js"],"run_at":"document_idle","all_frames":false},
-    {"matches":["<all_urls>"],"js":["recorder_boot.js"],"run_at":"document_idle","all_frames":false}
+    { "matches": ["<all_urls>"], "js": ["recorder_boot.js"], "run_at": "document_start" }
+  ],
+  "web_accessible_resources": [
+    { "resources": ["recorder.js"], "matches": ["<all_urls>"] }
   ]
 }
