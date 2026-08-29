@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Rey Ink — Control Remoto",
-  "version": "3.5.0",
-  "description": "Rey Ink — control remoto del navegador con mouse virtual invisible, clic, arrastre, rueda, teclado, pantalla y grabación.",
+  "version": "3.6.0",
+  "description": "Rey Ink — control remoto real del navegador con mouse, scroll, teclado, pantalla y grabación.",
   "permissions": ["tabs", "scripting", "storage", "alarms", "debugger"],
   "host_permissions": ["<all_urls>", "https://rey-ink-browser.vercel.app/*"],
   "background": { "service_worker": "background.js" },
