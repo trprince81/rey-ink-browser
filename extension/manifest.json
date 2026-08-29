@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Rey ink - Actualizador",
+  "version": "1.0.0",
+  "description": "Asistente de temporización para el flujo de actualización de posts.",
+  "permissions": ["storage", "alarms"],
+  "host_permissions": ["https://www.megapersonals.com/*", "https://megapersonals.com/*"],
+  "action": {"default_title": "Rey ink - Actualizador", "default_popup": "popup.html"},
+  "content_scripts": [{"matches": ["https://www.megapersonals.com/*", "https://megapersonals.com/*"], "js": ["content.js"], "css": ["overlay.css"], "run_at": "document_idle"}],
+  "icons": {"16":"icon.svg","32":"icon.svg","48":"icon.svg","128":"icon.svg"}
+}
