@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Rey ink - Actualizador",
-  "version": "1.1.0",
-  "description": "Agente de dispositivo y asistente de temporización de Rey ink.",
+  "version": "1.2.0",
+  "description": "Actualizador de Rey ink para MegaPersonals con ciclo configurable.",
   "permissions": ["storage", "alarms"],
   "host_permissions": [
     "https://www.megapersonals.com/*",
