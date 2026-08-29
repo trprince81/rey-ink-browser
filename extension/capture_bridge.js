@@ -28,20 +28,26 @@ async function reyInkRegisterWithRetry() {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === 'PREPARE_REMOTE') {
+    (async () => {
+      const slot = Number(message.pcSlot);
+      if (!Number.isInteger(slot) || slot < 1 || slot > 20) throw new Error('Selecciona PC1–PC20.');
+      await reyInkStorageReady(5000);
+      await chrome.storage.local.set({ reyInkPcSlot: slot });
+      return { ok: true };
+    })().then(sendResponse).catch(error => sendResponse({ ok: false, error: String(error?.message || error) }));
+    return true;
+  }
+
   if (message?.type !== 'REGISTER_REMOTE_RETRY') return false;
 
   (async () => {
     const slot = Number(message.pcSlot);
-    if (!Number.isInteger(slot) || slot < 1 || slot > 20) {
-      throw new Error('Selecciona PC1–PC20.');
-    }
-
+    if (!Number.isInteger(slot) || slot < 1 || slot > 20) throw new Error('Selecciona PC1–PC20.');
     await reyInkStorageReady(5000);
     await chrome.storage.local.set({ reyInkPcSlot: slot });
     return await reyInkRegisterWithRetry();
-  })().then(sendResponse).catch(error => {
-    sendResponse({ ok: false, error: String(error?.message || error) });
-  });
+  })().then(sendResponse).catch(error => sendResponse({ ok: false, error: String(error?.message || error) }));
 
   return true;
 });
