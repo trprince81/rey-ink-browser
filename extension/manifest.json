@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Rey Ink Control",
-  "version": "4.8.4",
-  "description": "Control remoto real de una pestaña de Chrome mediante WebRTC + CDP.",
+  "version": "4.8.6",
+  "description": "Rey Ink — control remoto real de una pestaña de Chrome por WebRTC + CDP, con auto clic programable.",
   "permissions": [
     "tabs",
     "activeTab",
@@ -13,9 +13,47 @@
     "debugger",
     "offscreen"
   ],
-  "host_permissions": ["<all_urls>"],
-  "background": {"service_worker": "background.js"},
-  "action": {"default_title": "Rey Ink Control", "default_popup": "control.html"},
-  "content_scripts": [{"matches":["<all_urls>"],"js":["content.js"],"run_at":"document_start"}],
-  "web_accessible_resources": [{"resources":["*"],"matches":["<all_urls>"]}]
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Rey Ink Control",
+    "default_popup": "control.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
 }
