@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Rey Ink Control",
-  "version": "4.8.7",
+  "version": "4.8.8",
   "description": "Rey Ink — control remoto real de una pestaña de Chrome por WebRTC + CDP, con auto clic programable.",
   "permissions": [
     "tabs",
@@ -14,7 +14,7 @@
     "offscreen"
   ],
   "host_permissions": ["<all_urls>"],
-  "background": {"service_worker": "background.js"},
+  "background": {"service_worker": "bootstrap.js"},
   "action": {
     "default_title": "Rey Ink Control",
     "default_popup": "control.html",
