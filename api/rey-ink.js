@@ -1,38 +1,30 @@
-export const runtime = 'nodejs';
+export const runtime='nodejs';
 
-const mem = globalThis.__reyInkDevicesV7 || (globalThis.__reyInkDevicesV7 = {
-  devices: new Map(), commands: new Map(), results: new Map()
-});
-
-const key = (kind, slot) => `reyink:v7:${kind}:${slot}`;
-const headers = {
-  'Content-Type': 'application/json; charset=utf-8',
-  'Cache-Control': 'no-store, no-cache, must-revalidate',
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-  'Access-Control-Allow-Headers': 'content-type'
-};
-const online = d => !!d && Date.now() - Number(d.lastSeen || 0) < 30000;
-function send(res, body, status = 200) { if (res.headersSent) return; res.statusCode=status; for(const [k,v] of Object.entries(headers)) res.setHeader(k,v); res.end(JSON.stringify(body)); }
-function getAction(req){try{return new URL(String(req?.url||'/'),'https://rey-ink-browser.vercel.app').searchParams.get('action')||''}catch{return ''}}
-async function readBody(req){if(req?.body&&typeof req.body==='object')return req.body;let raw='';for await(const chunk of req)raw+=chunk;if(!raw)return {};return JSON.parse(raw)}
+const mem=globalThis.__reyInkDevicesV8||(globalThis.__reyInkDevicesV8={devices:new Map(),commands:new Map(),results:new Map()});
+const key=(kind,slot)=>`reyink:v8:${kind}:${slot}`;
+const headers={'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store, no-cache, must-revalidate','Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'content-type'};
+const online=d=>!!d&&Date.now()-Number(d.lastSeen||0)<30000;
+function send(res,body,status=200){if(res.headersSent)return;res.statusCode=status;for(const[k,v]of Object.entries(headers))res.setHeader(k,v);res.end(JSON.stringify(body))}
+function urlOf(req){const raw=String(req?.url||'/');try{return new URL(raw,'https://rey-ink-browser.vercel.app')}catch{return new URL('https://rey-ink-browser.vercel.app/api/rey-ink')}}
+async function bodyOf(req){if(req?.body&&typeof req.body==='object')return req.body;let raw='';for await(const c of req)raw+=c;if(!raw)return{};try{return JSON.parse(raw)}catch{throw Error('JSON inválido')}}
 function storageName(){return process.env.KV_REST_API_URL&&process.env.KV_REST_API_TOKEN?'vercel-kv':'memory'}
-async function kv(command,args=[]){const url=process.env.KV_REST_API_URL,token=process.env.KV_REST_API_TOKEN;if(!url||!token)return null;const c=new AbortController(),t=setTimeout(()=>c.abort(),1500);try{const r=await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify([command,...args]),cache:'no-store',signal:c.signal});if(!r.ok)return null;const d=await r.json();return d?.result??null}catch{return null}finally{clearTimeout(t)}}
-async function read(kind,slot){const v=await kv('GET',[key(kind,slot)]);if(v!==null&&v!==undefined){try{return JSON.parse(v)}catch{return null}}return mem[`${kind}s`]?.get(Number(slot))||null}
-async function write(kind,slot,value,ttl=90){const saved=await kv('SET',[key(kind,slot),JSON.stringify(value),'EX',ttl]);if(saved!==null||(process.env.KV_REST_API_URL&&process.env.KV_REST_API_TOKEN))return;mem[`${kind}s`]?.set(Number(slot),value)}
-async function remove(kind,slot){const result=await kv('DEL',[key(kind,slot)]);if(result!==null||(process.env.KV_REST_API_URL&&process.env.KV_REST_API_TOKEN))return;mem[`${kind}s`]?.delete(Number(slot))}
+async function kv(command,args=[]){const u=process.env.KV_REST_API_URL,tok=process.env.KV_REST_API_TOKEN;if(!u||!tok)return null;const c=new AbortController(),tm=setTimeout(()=>c.abort(),1200);try{const r=await fetch(u,{method:'POST',headers:{Authorization:`Bearer ${tok}`,'content-type':'application/json'},body:JSON.stringify([command,...args]),cache:'no-store',signal:c.signal});if(!r.ok)return null;const d=await r.json();return d?.result??null}catch{return null}finally{clearTimeout(tm)}}
+async function read(kind,slot){const v=await kv('GET',[key(kind,slot)]);if(v!==null&&v!==undefined){try{return JSON.parse(v)}catch{return null}}return mem[`${kind}s`].get(Number(slot))||null}
+async function write(kind,slot,value,ttl=90){const v=await kv('SET',[key(kind,slot),JSON.stringify(value),'EX',ttl]);if(v===null)mem[`${kind}s`].set(Number(slot),value)}
+async function remove(kind,slot){const v=await kv('DEL',[key(kind,slot)]);if(v===null)mem[`${kind}s`].delete(Number(slot))}
 async function devices(){const out=[];for(let i=1;i<=20;i++){const d=await read('device',i);out.push({pc_slot:i,is_online:online(d),last_seen:d?.lastSeen||null,state:d?.state||null})}return out}
 export default async function handler(req,res){try{
 if(req.method==='OPTIONS')return send(res,{ok:true,service:'rey-ink'});
-if(req.method==='GET'){const action=getAction(req);if(action==='health'||!action)return send(res,{ok:true,service:'rey-ink',version:'8.3',storage:storageName(),time:Date.now()});if(action==='list_devices')return send(res,{ok:true,devices:await devices(),storage:storageName()});if(action==='last_result'){const n=Number(new URL(String(req.url||'/'),'https://rey-ink-browser.vercel.app').searchParams.get('pc_slot'));if(!Number.isInteger(n)||n<1||n>20)return send(res,{ok:false,error:'PC inválida'},400);return send(res,{ok:true,result:await read('result',n),storage:storageName()})}return send(res,{ok:false,error:'Acción GET desconocida'},400)}
-if(req.method!=='POST')return send(res,{ok:false,error:'Método no permitido'},405);let body;try{body=await readBody(req)}catch{return send(res,{ok:false,error:'JSON inválido'},400)}
-const action=String(body?.action||'').trim();if(action==='health')return send(res,{ok:true,service:'rey-ink',version:'8.3',storage:storageName(),time:Date.now()});if(action==='list_devices')return send(res,{ok:true,devices:await devices(),storage:storageName()});
-const n=Number(body?.pc_slot);if(!Number.isInteger(n)||n<1||n>20)return send(res,{ok:false,error:'PC inválida'},400);
-if(action==='register_device'||action==='heartbeat'){const old=await read('device',n),token=String(body?.token||old?.token||crypto.randomUUID()),device={pc_slot:n,token,lastSeen:Date.now(),state:body?.state||old?.state||null};await write('device',n,device,90);return send(res,{ok:true,pc_slot:n,token,is_online:true,storage:storageName()})}
-const device=await read('device',n);
-if(action==='get_state')return send(res,{ok:true,pc_slot:n,is_online:online(device),state:device?.state||null,storage:storageName()});
-if(action==='command'){if(!online(device))return send(res,{ok:false,error:'PC sin conexión'},409);if(body?.token&&body.token!==device.token)return send(res,{ok:false,error:'Token inválido'},401);const allowed=['get_state','reload','back','forward','new_tab','close_tab','start_bot','stop_bot','navigate','click','type','scroll','drag','key','tab_next','tab_prev','switch_tab','start_recording','stop_recording','run_routine','start_screen','stop_screen','autoclick_start','autoclick_stop'];const command=String(body?.command||'').toLowerCase().trim();if(!allowed.includes(command))return send(res,{ok:false,error:'Comando no permitido'},400);const id=crypto.randomUUID();await write('command',n,{id,command,payload:body?.payload||{},createdAt:Date.now()},60);return send(res,{ok:true,command_id:id,command})}
-if(action==='poll_command'){if(!device||body?.token!==device.token)return send(res,{ok:false,error:'Token inválido'},401);device.lastSeen=Date.now();await write('device',n,device,90);const command=await read('command',n);if(!command)return send(res,{ok:true,command:null});await remove('command',n);return send(res,{ok:true,command})}
-if(action==='command_result'){if(!device||body?.token!==device.token)return send(res,{ok:false,error:'Token inválido'},401);device.lastSeen=Date.now();await write('device',n,device,90);await write('result',n,{...(body?.result||{}),command_id:body?.command_id,receivedAt:Date.now()},300);return send(res,{ok:true})}
+const u=urlOf(req),action=String(u.searchParams.get('action')||'').trim();
+if(req.method==='GET'){if(action==='health'||!action)return send(res,{ok:true,service:'rey-ink',version:'9.0',storage:storageName(),time:Date.now()});if(action==='list_devices')return send(res,{ok:true,devices:await devices(),storage:storageName()});if(action==='last_result'){const n=Number(u.searchParams.get('pc_slot'));if(!Number.isInteger(n)||n<1||n>20)return send(res,{ok:false,error:'PC inválida'},400);return send(res,{ok:true,result:await read('result',n),storage:storageName()})}return send(res,{ok:false,error:'Acción GET desconocida'},400)}
+if(req.method!=='POST')return send(res,{ok:false,error:'Método no permitido'},405);
+let b;try{b=await bodyOf(req)}catch(e){return send(res,{ok:false,error:String(e.message||e)},400)}
+const a=String(b?.action||'').trim();if(a==='health')return send(res,{ok:true,service:'rey-ink',version:'9.0',storage:storageName(),time:Date.now()});if(a==='list_devices')return send(res,{ok:true,devices:await devices(),storage:storageName()});
+const n=Number(b?.pc_slot);if(!Number.isInteger(n)||n<1||n>20)return send(res,{ok:false,error:'PC inválida'},400);
+if(a==='register_device'||a==='heartbeat'){const old=await read('device',n),token=String(b?.token||old?.token||crypto.randomUUID()),d={pc_slot:n,token,lastSeen:Date.now(),state:b?.state||old?.state||null};await write('device',n,d,90);return send(res,{ok:true,pc_slot:n,token,is_online:true,storage:storageName()})}
+const d=await read('device',n);if(a==='get_state')return send(res,{ok:true,pc_slot:n,is_online:online(d),state:d?.state||null,storage:storageName()});
+if(a==='command'){if(!online(d))return send(res,{ok:false,error:'PC sin conexión'},409);if(b?.token&&b.token!==d.token)return send(res,{ok:false,error:'Token inválido'},401);const allowed=['get_state','reload','back','forward','new_tab','close_tab','navigate','click','double_click','right_click','type','scroll','drag','key','start_screen','stop_screen','autoclick_start','autoclick_stop'];const cmd=String(b?.command||'').toLowerCase().trim();if(!allowed.includes(cmd))return send(res,{ok:false,error:'Comando no permitido'},400);const id=crypto.randomUUID();await write('command',n,{id,command:cmd,payload:b?.payload||{},createdAt:Date.now()},60);return send(res,{ok:true,command_id:id,command:cmd})}
+if(a==='poll_command'){if(!d||b?.token!==d.token)return send(res,{ok:false,error:'Token inválido'},401);d.lastSeen=Date.now();await write('device',n,d,90);const cmd=await read('command',n);if(!cmd)return send(res,{ok:true,command:null});await remove('command',n);return send(res,{ok:true,command:cmd})}
+if(a==='command_result'){if(!d||b?.token!==d.token)return send(res,{ok:false,error:'Token inválido'},401);d.lastSeen=Date.now();await write('device',n,d,90);await write('result',n,{...(b?.result||{}),command_id:b?.command_id,receivedAt:Date.now()},300);return send(res,{ok:true})}
 return send(res,{ok:false,error:'Acción desconocida'},400)
-}catch(error){return send(res,{ok:false,error:String(error?.message||error)},500)}}
+}catch(e){return send(res,{ok:false,error:String(e?.message||e)},500)}}
