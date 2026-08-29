@@ -5,7 +5,7 @@ let captureCleanup=msg('WEBRTC_STOP').catch(()=>({ok:false}));
 function show(id,text,good=true){const e=$(id);if(!e)return;e.textContent=(good?'● ':'⚠ ')+text;e.className='status '+(good?'ok':'err')}
 async function state(){return msg('GET_STATE')}
 function log(x){const e=$('diag');if(e)e.textContent=new Date().toLocaleTimeString()+'  '+x+'\n'+e.textContent}
-async function refreshPCs(){const d=await fetch('https://rey-ink-browser.vercel.app/api/rey-ink?action=list_devices',{cache:'no-store'}).then(r=>r.json()).catch(()=>({devices:[]}));const s=$('pc');if(!s)return;const old=s.value;s.innerHTML='<option value="">Selecciona PC</option>';for(const x of d.devices||[]){const o=document.createElement('option');o.value=String(x.pc_slot);o.textContent='PC '+x.pc_slot+(x.is_online?' · 🟢 en línea':'');s.appendChild(o)}if(old)s.value=old}
+async function refreshPCs(){const fetcher=async()=>{try{const r=await fetch('https://rey-ink-browser.vercel.app/api/rey-ink?action=list_devices',{cache:'no-store'});return await r.json()}catch{return{devices:[]}}};const d=await fetcher();const s=$('pc');if(!s)return;const old=s.value;s.innerHTML='<option value="">Selecciona PC</option>';for(const x of d.devices||[]){const o=document.createElement('option');o.value=String(x.pc_slot);o.textContent='PC '+x.pc_slot+(x.is_online?' · 🟢 en línea':'');s.appendChild(o)}if(old)s.value=old}
 $('connect').onclick=async()=>{
   const n=Number($('pc')?.value);
   if(!Number.isInteger(n)||n<1||n>20){show('relay','Selecciona PC1–PC20.',false);return}
@@ -15,23 +15,25 @@ $('connect').onclick=async()=>{
     const tab=tabs.find(t=>t?.id&&/^https?:/i.test(t.url||''));
     if(!tab?.id)throw Error('Abre primero una página web normal en Chrome.');
 
-    // Nunca arrancamos una segunda captura encima de la anterior.
     await captureCleanup;
-    const prepared=await msg('PREPARE_REMOTE',{pcSlot:n});
+    await msg('WEBRTC_STOP').catch(()=>{});
+    await wait(200);
+
+    // El slot se configura directamente en el service worker.
+    const prepared=await msg('SET_PC_SLOT',{pcSlot:n});
     if(!prepared?.ok)throw Error(prepared?.error||'Chrome todavía no está listo para conectar.');
 
-    // El getMediaStreamId ocurre directamente desde el clic de Conectar.
+    // getMediaStreamId debe ejecutarse como parte de la acción del usuario.
     let streamId;
     try{
       streamId=await chrome.tabCapture.getMediaStreamId({targetTabId:Number(tab.id)});
     }catch(e){
-      // Si quedó una captura antigua, cerramos el offscreen y damos un segundo intento.
       await msg('WEBRTC_STOP').catch(()=>{});
       await wait(350);
       streamId=await chrome.tabCapture.getMediaStreamId({targetTabId:Number(tab.id)});
     }
 
-    const reg=await msg('REGISTER_REMOTE_RETRY',{pcSlot:n});
+    const reg=await msg('REGISTER_REMOTE');
     if(!reg?.ok)throw Error(reg?.error||'No se pudo registrar la PC.');
     const r=await msg('WEBRTC_HOST',{streamId});
     if(!r?.ok)throw Error(r?.error||'No se pudo iniciar la transmisión WebRTC.');
