@@ -1,0 +1,1 @@
+module.exports=(req,res)=>{res.setHeader('Cache-Control','no-store');res.status(200).json({ok:true,service:'rey-ink',version:'1.0.0',message:'API base ready'});}
