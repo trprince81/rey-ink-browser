@@ -1,41 +1,21 @@
 {
   "manifest_version": 3,
   "name": "Rey Ink Control",
-  "version": "4.7.0",
+  "version": "4.8.3",
   "description": "Control remoto real de una pestaña de Chrome mediante WebRTC + CDP.",
   "permissions": [
     "tabs",
+    "activeTab",
+    "tabCapture",
     "scripting",
     "storage",
     "alarms",
     "debugger",
     "offscreen"
   ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
-  "background": {
-    "service_worker": "background.js"
-  },
-  "action": {
-    "default_title": "Rey Ink Control",
-    "default_popup": "control.html"
-  },
-  "content_scripts": [
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "content.js"
-      ],
-      "run_at": "document_start"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["*"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  "host_permissions": ["<all_urls>"],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_title": "Rey Ink Control", "default_popup": "control.html"},
+  "content_scripts": [{"matches":["<all_urls>"],"js":["content.js"],"run_at":"document_start"}],
+  "web_accessible_resources": [{"resources":["*"],"matches":["<all_urls>"]}]
 }
