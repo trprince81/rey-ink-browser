@@ -14,8 +14,15 @@ jobs:
           node --check extension/background.js
           node --check extension/control.js
           node --check extension/offscreen.js
+          test -f extension/control.html
+          test -f extension/offscreen.html
+          test -f extension/icons/icon128.png
+      - name: Package extension
+        run: |
+          cd extension
+          zip -qr ../Rey_Ink_4.8.6_REAL.zip .
       - name: Upload extension package
         uses: actions/upload-artifact@v4
         with:
-          name: Rey_Ink_4.8.4_REAL
-          path: extension
+          name: Rey_Ink_4.8.6_REAL
+          path: Rey_Ink_4.8.6_REAL.zip
