@@ -1,8 +1,7 @@
 const $=id=>document.getElementById(id);
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 async function msg(type,data={}){return await new Promise(resolve=>chrome.runtime.sendMessage({type,...data},r=>resolve(r||{ok:false,error:chrome.runtime.lastError?.message||'Error'})))}
-// Libera una captura anterior de Rey Ink al abrir el panel.
-msg('WEBRTC_STOP').catch(()=>{});
+let captureCleanup=msg('WEBRTC_STOP').catch(()=>({ok:false}));
 function show(id,text,good=true){const e=$(id);if(!e)return;e.textContent=(good?'● ':'⚠ ')+text;e.className='status '+(good?'ok':'err')}
 async function state(){return msg('GET_STATE')}
 function log(x){const e=$('diag');if(e)e.textContent=new Date().toLocaleTimeString()+'  '+x+'\n'+e.textContent}
@@ -16,14 +15,23 @@ $('connect').onclick=async()=>{
     const tab=tabs.find(t=>t?.id&&/^https?:/i.test(t.url||''));
     if(!tab?.id)throw Error('Abre primero una página web normal en Chrome.');
 
-    // Guarda la PC localmente y pide el stream inmediatamente.
-    // El registro de red ocurre en paralelo para que el streamId no expire.
-    chrome.storage.local.set({reyInkPcSlot:n});
-    const streamPromise=chrome.tabCapture.getMediaStreamId({targetTabId:Number(tab.id)});
-    const regPromise=msg('REGISTER_REMOTE');
-    let streamId,reg;
-    try{[streamId,reg]=await Promise.all([streamPromise,regPromise]);}
-    catch(e){throw Error('Chrome no pudo capturar esta pestaña: '+(e?.message||e));}
+    // Nunca arrancamos una segunda captura encima de la anterior.
+    await captureCleanup;
+    const prepared=await msg('PREPARE_REMOTE',{pcSlot:n});
+    if(!prepared?.ok)throw Error(prepared?.error||'Chrome todavía no está listo para conectar.');
+
+    // El getMediaStreamId ocurre directamente desde el clic de Conectar.
+    let streamId;
+    try{
+      streamId=await chrome.tabCapture.getMediaStreamId({targetTabId:Number(tab.id)});
+    }catch(e){
+      // Si quedó una captura antigua, cerramos el offscreen y damos un segundo intento.
+      await msg('WEBRTC_STOP').catch(()=>{});
+      await wait(350);
+      streamId=await chrome.tabCapture.getMediaStreamId({targetTabId:Number(tab.id)});
+    }
+
+    const reg=await msg('REGISTER_REMOTE_RETRY',{pcSlot:n});
     if(!reg?.ok)throw Error(reg?.error||'No se pudo registrar la PC.');
     const r=await msg('WEBRTC_HOST',{streamId});
     if(!r?.ok)throw Error(r?.error||'No se pudo iniciar la transmisión WebRTC.');
@@ -31,7 +39,7 @@ $('connect').onclick=async()=>{
     log('PC'+n+' conectada. Captura de pestaña iniciada.');
   }catch(e){show('relay',e.message||String(e),false);log('ERROR: '+(e.message||e))}
 };
-$('disconnect').onclick=async()=>{const r=await msg('DISCONNECT_REMOTE');show('relay',r?.ok?'PC desconectada.':(r?.error||'No se pudo desconectar.'),!!r?.ok)};
+$('disconnect').onclick=async()=>{const r=await msg('DISCONNECT_REMOTE');captureCleanup=Promise.resolve(r);show('relay',r?.ok?'PC desconectada.':(r?.error||'No se pudo desconectar.'),!!r?.ok)};
 $('check').onclick=async()=>{const r=await state();show('browser',r?.ok?(r.title||'Pestaña activa')+'\n'+(r.url||''):(r.error||'Error'),!!r?.ok)};
 $('reload').onclick=async()=>log((await msg('RELOAD')).ok?'Recargar: OK':'Recargar: error');
 $('back').onclick=async()=>log((await msg('GO_BACK')).ok?'Atrás: OK':'Atrás: error');
