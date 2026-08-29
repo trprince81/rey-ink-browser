@@ -14,12 +14,8 @@ jobs:
           node --check extension/background.js
           node --check extension/control.js
           node --check extension/offscreen.js
-      - name: Package extension
-        run: |
-          cd extension
-          zip -r ../Rey_Ink_4.8.4_REAL.zip .
-      - name: Upload extension ZIP
+      - name: Upload extension package
         uses: actions/upload-artifact@v4
         with:
           name: Rey_Ink_4.8.4_REAL
-          path: Rey_Ink_4.8.4_REAL.zip
+          path: extension
