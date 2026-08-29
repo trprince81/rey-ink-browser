@@ -1,11 +1,41 @@
 {
   "manifest_version": 3,
-  "name": "Rey Ink — Control Remoto",
-  "version": "4.6.0",
-  "description": "Control remoto real del navegador y auto-clic programable.",
-  "permissions": ["tabs", "storage", "alarms", "debugger", "scripting"],
-  "host_permissions": ["<all_urls>", "https://rey-ink-browser.vercel.app/*"],
-  "background": {"service_worker": "background.js"},
-  "action": {"default_title": "Rey Ink", "default_popup": "control.html"},
-  "content_scripts": [{"matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_start"}]
+  "name": "Rey Ink Control",
+  "version": "4.7.0",
+  "description": "Control remoto real de una pestaña de Chrome mediante WebRTC + CDP.",
+  "permissions": [
+    "tabs",
+    "scripting",
+    "storage",
+    "alarms",
+    "debugger",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Rey Ink Control",
+    "default_popup": "control.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }
