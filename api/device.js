@@ -4,14 +4,14 @@ async function sb(path,options={}){const u=process.env.SUPABASE_URL,k=process.en
 async function getDevice(id,token){const r=await sb(`${TABLE}?id=eq.${encodeURIComponent(id)}&select=*`);const rows=await r.json();if(!r.ok||!rows[0])return null;const d=rows[0];if(d.metadata?.control_token!==token)return null;return d}
 module.exports=async(req,res)=>{try{const q=req.query||{};const b=typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{});const id=q.id||b.id,token=q.token||b.token;if(!id||!token)return res.status(400).json({error:'Faltan credenciales del dispositivo'});const d=await getDevice(id,token);if(!d)return res.status(404).json({error:'Dispositivo o link no válido'});const now=new Date().toISOString();
 if(req.method==='GET'){
-  const pending=d.metadata?.pending_command||null;
-  const cleanMetadata={...(d.metadata||{})};
-  if(pending){delete cleanMetadata.pending_command;await sb(`${TABLE}?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify({metadata:cleanMetadata,last_seen_at:now,updated_at:now})});}
-  else await sb(`${TABLE}?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify({last_seen_at:now,updated_at:now})});
-  return res.status(200).json({device:{...d,last_seen_at:now,metadata:cleanMetadata},command:pending});
+ const pending=d.metadata?.pending_command||null;const cleanMetadata={...(d.metadata||{})};if(pending)delete cleanMetadata.pending_command;
+ const patch={last_seen_at:now,is_online:true,updated_at:now,metadata:cleanMetadata};
+ await sb(`${TABLE}?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(patch)});
+ return res.status(200).json({device:{...d,last_seen_at:now,is_online:true,metadata:cleanMetadata},command:pending});
 }
 if(req.method!=='POST')return res.status(405).json({error:'Método no permitido'});
 const command=b.command;const metadata={...(d.metadata||{})};
+if(command==='heartbeat'){const state=b.payload||{};const patch={last_seen_at:now,is_online:true,updated_at:now,metadata:{...metadata,last_state:state}};const r=await sb(`${TABLE}?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(patch)});const out=await r.json();return res.status(r.ok?200:500).json(r.ok?{ok:true,device:out[0]}:{error:JSON.stringify(out)})}
 if(command==='start'||command==='stop'){const running=command==='start';const patch={updater_running:running,updated_at:now};if(running)patch.next_bump_at=new Date(Date.now()+d.bump_interval_seconds*1000).toISOString();else patch.next_bump_at=null;const r=await sb(`${TABLE}?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(patch)});const out=await r.json();if(!r.ok)throw Error(JSON.stringify(out));return res.status(200).json({ok:true,device:out[0]})}
 if(command==='bump'||command==='open_my_posts'||command==='edit_post'){metadata.pending_command={id:crypto.randomUUID(),type:command,created_at:now,payload:b.payload||null};const patch={metadata,updated_at:now};if(command==='bump'){patch.last_bump_at=now;patch.next_bump_at=new Date(Date.now()+d.bump_interval_seconds*1000).toISOString()}const r=await sb(`${TABLE}?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(patch)});const out=await r.json();if(!r.ok)throw Error(JSON.stringify(out));return res.status(200).json({ok:true,command,device:out[0]})}
 if(command==='settings'){const seconds=Number(b.payload?.bump_interval_seconds);if(!Number.isFinite(seconds)||seconds<60||seconds>86400)return res.status(400).json({error:'Intervalo inválido'});const r=await sb(`${TABLE}?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify({bump_interval_seconds:Math.round(seconds),updated_at:now})});const out=await r.json();return res.status(r.ok?200:500).json(r.ok?{ok:true,device:out[0]}:{error:JSON.stringify(out)})}
