@@ -37,7 +37,7 @@ async function startPairing(){
   }
 }
 $('pair').onclick=startPairing;
-$('connect').onclick=async()=>{const r=await msg('REGISTRAR_REMOTE').catch(()=>({ok:false}));const x=r.ok?r:await msg('REGISTRAR_REMOTE');$('status').textContent=x.ok?'🟢 CONECTADO · Navegador '+(x.number||''):'⚠ '+(x.error||'Error');await refresh();};
+$('connect').onclick=async()=>{const r=await msg('REGISTER_REMOTE');$('status').textContent=r.ok?'🟢 CONECTADO · Navegador '+(r.number||''):'⚠ '+(r.error||'Error');await refresh();};
 $('disconnect').onclick=async()=>{await msg('DISCONNECT_REMOTE');await refresh()};
 $('reload').onclick=async()=>{const r=await msg('RELOAD');if(!r.ok)alert(r.error||'No se pudo recargar');await refresh()};
 $('back').onclick=async()=>{const r=await msg('GO_BACK');if(!r.ok)alert(r.error||'No se pudo volver');await refresh()};
