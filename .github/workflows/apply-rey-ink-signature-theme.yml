@@ -1,0 +1,173 @@
+name: Apply Rey Ink Signature Theme
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - '.github/workflows/apply-rey-ink-signature-theme.yml'
+      - 'SIGNATURE_THEME_TRIGGER.txt'
+permissions:
+  contents: write
+jobs:
+  theme:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Inject signature CSS
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = 'id="rey-ink-signature-theme"'
+          if marker not in s:
+              css = r'''<style id="rey-ink-signature-theme">
+/* REY INK SIGNATURE — VISUAL ONLY. Existing DOM, IDs, JS, API and data remain untouched. */
+:root{
+  --ri-bg:#03040a;--ri-surface:#080a12;--ri-surface2:#0b0d17;--ri-line:#24283e;
+  --ri-v:#a66bff;--ri-v2:#6e32d8;--ri-cyan:#72e8ff;--ri-green:#39efad;
+  --ri-text:#f7f6ff;--ri-muted:#747d98;
+}
+html{background:#03040a}
+body{
+  min-height:100vh;overflow-x:hidden;color:var(--ri-text);
+  background:
+    radial-gradient(1000px 600px at 74% -15%,#7b35d62b,transparent 64%),
+    radial-gradient(800px 520px at -12% 62%,#253b7d18,transparent 65%),
+    radial-gradient(600px 360px at 92% 82%,#5521a40d,transparent 70%),
+    #03040a;
+}
+body:before{
+  content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;opacity:.32;
+  background-image:linear-gradient(#9b65ff09 1px,transparent 1px),linear-gradient(90deg,#9b65ff09 1px,transparent 1px);
+  background-size:48px 48px;mask-image:linear-gradient(to bottom,black,transparent 88%);
+}
+body:after{
+  content:"";position:fixed;z-index:-1;pointer-events:none;width:620px;height:620px;left:48%;top:34%;
+  transform:translate(-50%,-50%);border-radius:50%;
+  background:radial-gradient(circle,#9d5cff0b 0,transparent 68%);filter:blur(10px);
+  animation:riAmbient 9s ease-in-out infinite alternate;
+}
+@keyframes riAmbient{from{transform:translate(-54%,-48%) scale(.92);opacity:.65}to{transform:translate(-46%,-52%) scale(1.08);opacity:1}}
+.wrap{width:min(1560px,96vw);margin:18px auto 54px}
+.head{
+  position:relative;display:flex;align-items:center;justify-content:space-between;gap:18px;
+  padding:14px 16px;margin-bottom:16px;border:1px solid #20243a;border-radius:18px;
+  background:linear-gradient(110deg,#090b14ed,#080a11d9);box-shadow:0 18px 55px #00000045,inset 0 1px #ffffff08;
+  backdrop-filter:blur(18px);
+}
+.head:before{content:"";position:absolute;left:0;top:0;width:190px;height:1px;background:linear-gradient(90deg,#b16cff,transparent);box-shadow:0 0 18px #a05cff}
+.brand{font-size:25px;font-weight:950;letter-spacing:.2px;text-shadow:0 0 28px #8d4dff40}
+.brand:before{
+  content:"♛";display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;margin-right:11px;
+  border:1px solid #7644ad;border-radius:12px;background:linear-gradient(145deg,#21113c,#090a12);
+  color:#b776ff;box-shadow:inset 0 0 20px #8c4cff13,0 0 24px #8d4cff18;vertical-align:-10px;
+}
+.brand span{color:#b16cff}
+#refresh{min-width:126px}
+.hero{
+  position:relative;isolation:isolate;display:grid;grid-template-columns:248px minmax(0,1fr);gap:24px;
+  padding:18px;border:1px solid #252941;border-radius:26px;
+  background:linear-gradient(135deg,#090b13f7 0%,#060810f4 58%,#090711f2 100%);
+  box-shadow:0 30px 100px #00000070,0 0 100px #7138b40b,inset 0 1px #ffffff06;
+  backdrop-filter:blur(22px);min-height:760px;overflow:hidden;
+}
+.hero:before{content:"";position:absolute;z-index:-1;left:-12%;top:-18%;width:65%;height:52%;background:radial-gradient(ellipse,#8e4dfd0b,transparent 70%);filter:blur(18px)}
+.hero:after{content:"";position:absolute;z-index:-1;right:-15%;bottom:-25%;width:60%;height:58%;background:radial-gradient(ellipse,#33cfff06,transparent 68%);filter:blur(20px)}
+.tabs{
+  grid-column:1;grid-row:1;align-self:stretch;display:flex;flex-direction:column;gap:7px;padding:12px;
+  border:1px solid #20243a;border-radius:20px;background:linear-gradient(180deg,#0b0d16e8,#070911e8);
+  box-shadow:inset 0 1px #ffffff06,0 18px 45px #00000025;backdrop-filter:blur(16px);
+}
+.tabs:before{
+  content:"REY INK\\A CONTROL CENTER";white-space:pre;display:block;padding:13px 11px 17px;margin:0 0 8px;
+  border-bottom:1px solid #1e2234;color:#a99bc2;font-size:10px;line-height:1.55;letter-spacing:2px;font-weight:950;
+}
+.tab{
+  position:relative;overflow:hidden;border:1px solid transparent!important;background:transparent!important;color:#828aa5;
+  border-radius:12px!important;padding:13px 14px!important;text-align:left;font-size:13px;font-weight:850;
+  transition:transform .2s ease,border-color .2s ease,background .2s ease,color .2s ease;box-shadow:none!important;
+}
+.tab:before{display:inline-block;width:25px;margin-right:3px;color:#5f6780;font-size:13px;transition:.2s}
+.tab:nth-child(1):before{content:"◈"}.tab:nth-child(2):before{content:"◉"}.tab:nth-child(3):before{content:"⌁"}.tab:nth-child(4):before{content:"◇"}.tab:nth-child(5):before{content:"↗"}.tab:nth-child(6):before{content:"◷"}
+.tab:hover{color:#eeeaff!important;background:linear-gradient(90deg,#151124,#0c0d16)!important;border-color:#30264a!important;transform:translateX(3px)}
+.tab:hover:before{color:#a66bff}
+.tab.active{
+  color:#fff!important;background:linear-gradient(100deg,#3b1b68,#21133a 62%,#15101f)!important;border-color:#6d3eaa!important;
+  box-shadow:0 0 28px #7437bd1a,inset 3px 0 #b16cff!important;
+}
+.tab.active:before{color:#bf8cff;text-shadow:0 0 12px #a35cff}
+.tab.active:after{content:"";position:absolute;right:12px;top:50%;width:5px;height:5px;border-radius:50%;background:#c38dff;box-shadow:0 0 12px #b875ff;transform:translateY(-50%)}
+.section{grid-column:2;grid-row:1;min-width:0;padding:8px 8px 20px;animation:riSection .25s ease both}
+@keyframes riSection{from{opacity:.55;transform:translateY(4px)}to{opacity:1;transform:none}}
+.section h2{position:relative;margin:3px 0 22px;padding-bottom:13px;font-size:27px;letter-spacing:-.7px;font-weight:950}
+.section h2:after{content:"";display:block;width:74px;height:2px;margin-top:11px;border-radius:4px;background:linear-gradient(90deg,#b16cff,#6d35d8,transparent);box-shadow:0 0 13px #a15cff55}
+.grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:4px}
+.card{
+  position:relative;overflow:hidden;min-height:108px;padding:18px!important;border:1px solid #22263a!important;border-radius:18px!important;
+  background:linear-gradient(145deg,#0d101a,#080a11)!important;box-shadow:0 15px 40px #00000032,inset 0 1px #ffffff05!important;
+  transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease!important;
+}
+.card:before{content:"";position:absolute;left:18px;top:0;width:62px;height:1px;background:linear-gradient(90deg,#a764ff,transparent);box-shadow:0 0 14px #9b5cff}
+.card:after{content:"";position:absolute;right:-36px;top:-42px;width:125px;height:125px;border-radius:50%;background:radial-gradient(circle,#a55cff0d,transparent 68%);pointer-events:none}
+.card:hover{transform:translateY(-3px)!important;border-color:#3b3155!important;box-shadow:0 20px 45px #00000045,0 0 30px #7b3bd00b,inset 0 1px #ffffff08!important}
+.k{font-size:9px!important;letter-spacing:1.5px!important;color:#717a95!important;font-weight:900!important}
+.v{font-size:31px!important;line-height:1!important;margin-top:10px!important;font-weight:950!important;text-shadow:0 0 25px #9653ff30}
+.toolbar{
+  gap:9px!important;padding:13px!important;border:1px solid #1f2336!important;border-radius:16px!important;
+  background:linear-gradient(110deg,#080a11,#0b0d15)!important;box-shadow:inset 0 1px #ffffff04,0 12px 30px #00000020!important;
+}
+.input,.select{background:#070911!important;border-color:#252a40!important;border-radius:12px!important;min-height:42px;outline:none;box-shadow:inset 0 1px #ffffff03;transition:.18s}
+.input:focus,.select:focus{border-color:#7141ad!important;box-shadow:0 0 0 3px #8e50e80e,0 0 20px #8c4fff0a!important}
+.btn{border:1px solid #2a2f46!important;border-radius:11px!important;background:linear-gradient(180deg,#191d2c,#0f121d)!important;box-shadow:0 7px 20px #00000030,inset 0 1px #ffffff05!important;transition:.18s!important}
+.btn:hover{border-color:#7041a8!important;background:linear-gradient(180deg,#24183b,#151021)!important;transform:translateY(-2px)!important;box-shadow:0 10px 25px #00000045,0 0 22px #7e40d812!important}
+.btn:active{transform:translateY(0)!important}
+.table{
+  width:100%;border-collapse:separate!important;border-spacing:0!important;overflow:hidden;border:1px solid #20243a!important;border-radius:17px!important;
+  background:#070910!important;box-shadow:0 18px 45px #0000002b!important;
+}
+.table th{padding:14px 12px!important;background:linear-gradient(180deg,#10131e,#0b0d16)!important;color:#747d97!important;border-bottom:1px solid #25293c!important;font-size:9px!important;letter-spacing:1.2px!important}
+.table td{padding:14px 12px!important;border-bottom:1px solid #181c2b!important}
+.table tbody tr{transition:background .15s ease,transform .15s ease}
+.table tbody tr:hover{background:linear-gradient(90deg,#111321,#0d0f18)!important}
+.table tr:last-child td{border-bottom:0!important}
+.badge{padding:5px 10px!important;border:1px solid #292f46!important;border-radius:999px!important;background:#151927!important;box-shadow:inset 0 1px #ffffff04}
+.pair,.detail{
+  border:1px solid #49346c!important;background:linear-gradient(145deg,#130d22,#080a11)!important;
+  box-shadow:0 20px 55px #00000035,0 0 40px #7d40d00d!important;
+}
+.pair{position:relative;overflow:hidden;border-radius:18px!important;padding:16px!important}
+.pair:before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(#bb7cff,#6332c9,transparent);box-shadow:0 0 16px #9c56ff}
+.pairCode{font-size:15px!important;font-weight:900;letter-spacing:4px!important;text-shadow:0 0 18px #a45eff40}
+.detail{border-radius:21px!important;padding:20px!important}
+.detailTitle{font-size:28px!important}
+.detailCard{background:linear-gradient(145deg,#090c14,#070910)!important;border-color:#20243a!important;border-radius:15px!important;box-shadow:inset 0 1px #ffffff04}
+.detailCard h3{letter-spacing:1px!important}
+.linkbox{background:#070910!important;border-color:#293049!important;border-radius:12px!important}
+.notice{color:#8c95ad!important}
+#status{position:relative;padding:13px 15px!important;border:1px solid #20253a!important;border-radius:13px!important;background:linear-gradient(90deg,#080b12,#0a0c14)!important;box-shadow:inset 0 1px #ffffff04}
+#status:before{content:"";display:inline-block;width:7px;height:7px;margin-right:9px;border-radius:50%;background:#3befad;box-shadow:0 0 13px #3befad}
+.green,.pairOk,.botActive{color:#42efb1!important;text-shadow:0 0 14px #35e39a2d}
+.red,.botStopped{color:#ff7895!important}
+.danger{background:linear-gradient(145deg,#32131f,#211018)!important;border-color:#73324a!important}
+.history{background:#070910!important;border:1px solid #1e2335;border-radius:16px;padding:4px 13px}
+.event{padding:14px 5px!important;border-bottom-color:#1b1f2e!important}
+.event:last-child{border-bottom:0}
+.empty{padding:30px!important;border:1px dashed #282d42;border-radius:14px;background:#070910}
+.dot{width:8px!important;height:8px!important}
+@media(max-width:1100px){.hero{grid-template-columns:205px minmax(0,1fr);gap:16px}.grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.head{padding:12px}.hero{display:block;padding:11px}.tabs{display:grid;grid-template-columns:repeat(2,1fr);margin-bottom:13px}.tabs:before{grid-column:1/-1}.section{padding:6px}.grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.wrap{width:95vw}.tabs{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.toolbar{display:grid!important;grid-template-columns:1fr}.input,.select{min-width:0;width:100%}.section h2{font-size:23px}.head{align-items:flex-start;flex-direction:column}.head .btn{width:100%}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+</style>'''
+              s = s.replace('</head>', css + '</head>', 1)
+              p.write_text(s, encoding='utf-8')
+      - name: Commit signature theme
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet || git commit -m "Apply Rey Ink signature control center theme"
+          git push
