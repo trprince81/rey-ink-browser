@@ -322,6 +322,7 @@ body:before{opacity:.16!important;background-image:linear-gradient(#8f62ff0a 1px
 }
 </style>
 
+<link rel="stylesheet" href="/reference-ui.css?v=3">
 </head>
 <body><main class="wrap">
 <div class="head"><div class="brand">👑 Rey <span>Ink</span></div><button class="btn" id="refresh">↻ Actualizar</button></div>
@@ -374,4 +375,5 @@ $('createLink').onclick=()=>action(async()=>{const clientId=$('linkClient').valu
 document.getElementById('linkResult').addEventListener('click',e=>{if(e.target.id==='copyLink'&&window.__lastLink){navigator.clipboard.writeText(window.__lastLink);e.target.textContent='Copiado ✓'}});
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.tab,.section').forEach(x=>x.classList.remove('active'));t.classList.add('active');$(t.dataset.tab).classList.add('active');if(t.dataset.tab==='history')loadHistory()}));
 refresh();
-</script></body></html>
+</script><script src="/reference-ui.js?v=3"></script>
+</body></html>
