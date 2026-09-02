@@ -10,22 +10,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inject reference assets
+      - name: Inject reference assets and admin bridge
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p=Path('index.html'); s=p.read_text(encoding='utf-8')
-          marker='reference-ui.css'
-          if marker not in s:
-              s=s.replace('</head>','<link rel="stylesheet" href="/reference-ui.css?v=3">\n</head>')
+          if 'reference-ui.css' not in s:
+              s=s.replace('</head>','<link rel="stylesheet" href="/reference-ui.css?v=4">\n</head>')
           if 'reference-ui.js' not in s:
-              s=s.replace('</body>','<script src="/reference-ui.js?v=3"></script>\n</body>')
+              s=s.replace('</body>','<script src="/reference-ui.js?v=4"></script>\n</body>')
+          if 'link-admin.js' not in s:
+              s=s.replace('</body>','<script src="/link-admin.js?v=1"></script>\n</body>')
+          if 'window.__RI_ADMIN' not in s:
+              marker='const ADMIN='
+              pos=s.find(marker)
+              end=s.find('</script>',pos)
+              if pos>=0 and end>=0:
+                  bridge='\nwindow.__RI_ADMIN={api:api,action:action,refresh:refresh};\n'
+                  s=s[:end]+bridge+s[end:]
           p.write_text(s,encoding='utf-8')
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
           if git diff --cached --quiet; then echo "Already wired"; exit 0; fi
-          git commit -m "ui: wire reference dashboard assets"
+          git commit -m "feat: wire link management panel"
           git push
