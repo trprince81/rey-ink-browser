@@ -1,0 +1,1 @@
+(function(){const l=(href,css=false)=>{if(document.querySelector('link[href^="'+href.split('?')[0]+'"]')||document.querySelector('script[src^="'+href.split('?')[0]+'"]'))return;const x=document.createElement(css?'link':'script');if(css){x.rel='stylesheet';x.href=href}else{x.src=href}document.head.appendChild(x)};l('/client-detail-links.css?v=1',true);})();
