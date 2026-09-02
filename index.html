@@ -375,5 +375,8 @@ $('createLink').onclick=()=>action(async()=>{const clientId=$('linkClient').valu
 document.getElementById('linkResult').addEventListener('click',e=>{if(e.target.id==='copyLink'&&window.__lastLink){navigator.clipboard.writeText(window.__lastLink);e.target.textContent='Copiado ✓'}});
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.tab,.section').forEach(x=>x.classList.remove('active'));t.classList.add('active');$(t.dataset.tab).classList.add('active');if(t.dataset.tab==='history')loadHistory()}));
 refresh();
+
+window.__RI_ADMIN={api:api,action:action,refresh:refresh};
 </script><script src="/reference-ui.js?v=3"></script>
+<script src="/link-admin.js?v=1"></script>
 </body></html>
