@@ -61,7 +61,11 @@
   }
   function config(){const a=prompt('Intervalo mínimo (minutos):',String(state.min));if(a===null)return;const b=prompt('Intervalo máximo (minutos):',String(state.max));if(b===null)return;state.min=Math.max(1,Number(a)||15);state.max=Math.max(state.min,Number(b)||state.min);save();state.lastMessage=`Intervalo ${state.min}-${state.max} min`;if(state.active)schedule();render();}
   async function remoteAction(action,p={}){
-    if(action==='settings'){config();return{ok:true}};
+    if(action==='settings'){
+      const sec=Number(p.bump_interval_seconds);
+      if(Number.isFinite(sec)&&sec>0){const minutes=Math.max(1,Math.round(sec/60));state.min=minutes;state.max=minutes;save();state.lastMessage=`Intervalo remoto ${minutes} min`;if(state.active)schedule();render();await report('settings','Intervalo remoto actualizado');return{ok:true}}
+      config();return{ok:true};
+    }
     if(action==='open_my_posts'){const mp=myPosts();if(!mp)throw Error('No se encontró My Posts en esta página.');mp.click();state.lastMessage='Abriendo My Posts…';save();render();await report('open_my_posts','My Posts abierto');return{ok:true}};
     if(action==='bump'){const btn=bumpButton();if(!btn)throw Error('No se encontró Bump to Top.');if(btn.disabled)throw Error('Bump temporalmente bloqueado.');btn.click();state.lastBumpAt=Date.now();state.postId=postId()||state.postId;state.lastMessage='Bump ejecutado';save();render();await report('bump','Bump ejecutado');return{ok:true}};
     if(action==='edit_post'){const btn=editButton();if(!btn)throw Error('No se encontró el botón Editar.');btn.click();state.lastMessage='Editando publicación…';save();render();await report('edit_post','Editor de publicación abierto');return{ok:true}};
