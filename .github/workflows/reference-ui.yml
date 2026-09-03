@@ -18,8 +18,14 @@ jobs:
           p=Path('index.html'); s=p.read_text(encoding='utf-8')
           if 'reference-ui.css' not in s:
               s=s.replace('</head>','<link rel="stylesheet" href="/reference-ui.css?v=4">\n</head>')
+          if 'reference-ui-stability.js' not in s:
+              marker='<script src="/reference-ui.js?v=4"></script>'
+              if marker in s:
+                  s=s.replace(marker,'<script src="/reference-ui-stability.js?v=1"></script>\n'+marker,1)
+              else:
+                  s=s.replace('</body>','<script src="/reference-ui-stability.js?v=1"></script>\n</body>')
           if 'reference-ui.js' not in s:
-              s=s.replace('</body>','<script src="/reference-ui.js?v=4"></script>\n</body>')
+              s=s.replace('</body>','<script src="/reference-ui-stability.js?v=1"></script>\n<script src="/reference-ui.js?v=4"></script>\n</body>')
           if 'link-admin.js' not in s:
               s=s.replace('</body>','<script src="/link-admin.js?v=1"></script>\n</body>')
           if 'link-admin-pro.js' not in s:
@@ -45,5 +51,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
           if git diff --cached --quiet; then echo "Already wired"; exit 0; fi
-          git commit -m "feat: wire activity center"
+          git commit -m "fix: wire stable reference ui"
           git push
