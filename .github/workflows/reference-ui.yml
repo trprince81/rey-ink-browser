@@ -24,6 +24,10 @@ jobs:
               s=s.replace('</body>','<script src="/link-admin.js?v=1"></script>\n</body>')
           if 'link-admin-pro.js' not in s:
               s=s.replace('</body>','<script src="/link-admin-pro.js?v=1"></script>\n</body>')
+          if 'client-detail-links.js' not in s:
+              s=s.replace('</body>','<script src="/client-detail-links.js?v=1"></script>\n</body>')
+          if 'client-detail-links.css' not in s:
+              s=s.replace('</head>','<link rel="stylesheet" href="/client-detail-links.css?v=1">\n</head>')
           if 'window.__RI_ADMIN' not in s:
               marker='const ADMIN='
               pos=s.find(marker)
@@ -37,5 +41,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
           if git diff --cached --quiet; then echo "Already wired"; exit 0; fi
-          git commit -m "feat: wire enhanced link manager"
+          git commit -m "feat: wire client detail links"
           git push
