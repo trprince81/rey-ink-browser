@@ -1,7 +1,7 @@
 (function(){'use strict';
 function loadScript(id,src){if(document.getElementById(id))return;var s=document.createElement('script');s.id=id;s.src=src;s.async=false;(document.head||document.documentElement).appendChild(s)}
-loadScript('ri-exact-bg-loader','/rey-ink-bg.js?v=18');
-loadScript('ri-brand-loader','/rey-ink-brand.js?v=8');
+loadScript('ri-exact-bg-loader','/rey-ink-bg.js?v=17');
+loadScript('ri-brand-loader','/rey-ink-brand.js?v=7');
 const CANONICAL='https://rey-ink-browser.vercel.app';
 const DELETE_API='https://rnduuuiskfuikzuepvnw.supabase.co/functions/v1/rey-ink-client-link-delete';
 const q=s=>document.querySelector(s);
