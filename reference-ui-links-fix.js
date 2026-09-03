@@ -1,4 +1,5 @@
 (function(){'use strict';
+function loadExactBackground(){if(document.getElementById('ri-exact-bg-loader'))return;var s=document.createElement('script');s.id='ri-exact-bg-loader';s.src='/rey-ink-bg.js';s.async=false;(document.head||document.documentElement).appendChild(s)}
 const q=s=>document.querySelector(s); const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function linkUrl(v){const s=String(v||'').trim();return /^https?:\/\//i.test(s)?s:(location.origin+'/client.html?d='+encodeURIComponent(s));}
 function injectTheme(){if(document.getElementById('ri-global-cleanup'))return;const st=document.createElement('style');st.id='ri-global-cleanup';st.textContent=`
@@ -13,6 +14,6 @@ function decorate(){const t=q('#linksTable');if(!t)return;const head=t.querySele
 async function copy(text){try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return true}}catch{}try{const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok}catch{return false}}
 function tab(n){q('.tab[data-tab="'+n+'"]')?.click()}
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-ri-link-fix]');if(b){const a=b.dataset.riLinkFix;if(a==='copy'){const old=b.textContent;const ok=await copy(b.dataset.url||'');b.textContent=ok?'Copiado ✓':'No se pudo copiar';setTimeout(()=>b.textContent=old,1200)}else if(a==='open'){const u=b.dataset.url||'';if(u)window.open(u,'_blank','noopener,noreferrer')}else if(a==='activity'){tab('history');setTimeout(()=>{const box=q('#historyList');const term=(b.dataset.client||'').toLowerCase();box?.querySelectorAll('.event').forEach(x=>x.style.display=(x.textContent||'').toLowerCase().includes(term)?'':'none')},180)}return}const p=e.target.closest('.riPanelLink');if(!p)return;const panel=p.closest('.riPanel');if(!panel)return;const m=panel.className;if(m.includes('riBrowsers'))tab('browsers');else if(m.includes('riLicenses'))tab('licenses');else if(m.includes('riActivity'))tab('history');else if(m.includes('riLinks'))tab('links');else if(m.includes('riClients'))tab('clients')});
-injectTheme();hideDuplicateChrome();decorate();
+loadExactBackground();injectTheme();hideDuplicateChrome();decorate();
 const observer=new MutationObserver(()=>{requestAnimationFrame(()=>{hideDuplicateChrome();decorate()})});observer.observe(document.body,{subtree:true,childList:true});
 })();
