@@ -15,31 +15,47 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('index.html'); s=p.read_text(encoding='utf-8')
-          if 'reference-ui.css' not in s:
-              s=s.replace('</head>','<link rel="stylesheet" href="/reference-ui.css?v=4">\n</head>')
-          if 'reference-ui-stability.js' not in s:
-              marker='<script src="/reference-ui.js?v=4"></script>'
-              if marker in s:
-                  s=s.replace(marker,'<script src="/reference-ui-stability.js?v=1"></script>\n'+marker,1)
-              else:
-                  s=s.replace('</body>','<script src="/reference-ui-stability.js?v=1"></script>\n</body>')
-          if 'reference-ui.js' not in s:
-              s=s.replace('</body>','<script src="/reference-ui-stability.js?v=1"></script>\n<script src="/reference-ui.js?v=4"></script>\n</body>')
-          if 'reference-ui-link-fix.js' not in s:
-              s=s.replace('</body>','<script src="/reference-ui-link-fix.js?v=1"></script>\n</body>')
-          if 'link-admin.js' not in s:
-              s=s.replace('</body>','<script src="/link-admin.js?v=1"></script>\n</body>')
-          if 'link-admin-pro.js' not in s:
-              s=s.replace('</body>','<script src="/link-admin-pro.js?v=1"></script>\n</body>')
-          if 'client-detail-links.js' not in s:
-              s=s.replace('</body>','<script src="/client-detail-links.js?v=1"></script>\n</body>')
-          if 'client-detail-links.css' not in s:
-              s=s.replace('</head>','<link rel="stylesheet" href="/client-detail-links.css?v=1">\n</head>')
-          if 'activity-manager.js' not in s:
-              s=s.replace('</body>','<script src="/activity-manager.js?v=1"></script>\n</body>')
-          if 'activity-manager.css' not in s:
-              s=s.replace('</head>','<link rel="stylesheet" href="/activity-manager.css?v=1">\n</head>')
+          import re
+
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+
+          def once_script(src):
+              nonlocal s
+              s=re.sub(r'<script[^>]+src=["\']/'+re.escape(src)+r'(?:\?[^"\']*)?["\'][^>]*></script>\s*', '', s, flags=re.I)
+
+          def once_css(href):
+              nonlocal s
+              s=re.sub(r'<link[^>]+href=["\']/'+re.escape(href)+r'(?:\?[^"\']*)?["\'][^>]*>\s*', '', s, flags=re.I)
+
+          css_assets=[
+              'reference-ui.css',
+              'client-detail-links.css',
+              'activity-manager.css',
+          ]
+          for x in css_assets:
+              once_css(x)
+          head=''.join([
+              '<link rel="stylesheet" href="/reference-ui.css?v=5">\n',
+              '<link rel="stylesheet" href="/client-detail-links.css?v=2">\n',
+              '<link rel="stylesheet" href="/activity-manager.css?v=2">\n',
+          ])
+          s=s.replace('</head>', head+'</head>', 1)
+
+          scripts=[
+              'reference-ui-stability.js',
+              'reference-ui.js',
+              'reference-ui-links-fix.js',
+              'link-admin.js',
+              'link-admin-pro.js',
+              'client-detail-links.js',
+              'activity-manager.js',
+          ]
+          for x in scripts:
+              once_script(x)
+          body=''.join([f'<script src="/{x}?v=1"></script>\n' for x in scripts])
+          s=s.replace('</body>', body+'</body>', 1)
+
           if 'window.__RI_ADMIN' not in s:
               marker='const ADMIN='
               pos=s.find(marker)
@@ -47,11 +63,12 @@ jobs:
               if pos>=0 and end>=0:
                   bridge='\nwindow.__RI_ADMIN={api:api,action:action,refresh:refresh};\n'
                   s=s[:end]+bridge+s[end:]
+
           p.write_text(s,encoding='utf-8')
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
           if git diff --cached --quiet; then echo "Already wired"; exit 0; fi
-          git commit -m "fix: wire stable link actions"
+          git commit -m "fix: wire Rey Ink control assets once"
           git push
