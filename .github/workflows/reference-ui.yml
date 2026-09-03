@@ -20,49 +20,34 @@ jobs:
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
 
-          def once_script(src):
-              nonlocal s
-              s=re.sub(r'<script[^>]+src=["\']/'+re.escape(src)+r'(?:\?[^"\']*)?["\'][^>]*></script>\s*', '', s, flags=re.I)
+          def remove_asset(src):
+              nonlocal_s[0]=re.sub(r'<script[^>]+src=["\']/'+re.escape(src)+r'(?:\?[^"\']*)?["\'][^>]*></script>\s*', '', nonlocal_s[0], flags=re.I)
+          def remove_css(href):
+              nonlocal_s[0]=re.sub(r'<link[^>]+href=["\']/'+re.escape(href)+r'(?:\?[^"\']*)?["\'][^>]*>\s*', '', nonlocal_s[0], flags=re.I)
 
-          def once_css(href):
-              nonlocal s
-              s=re.sub(r'<link[^>]+href=["\']/'+re.escape(href)+r'(?:\?[^"\']*)?["\'][^>]*>\s*', '', s, flags=re.I)
+          nonlocal_s=[s]
+          for x in ['reference-ui.css','client-detail-links.css','activity-manager.css']:
+              remove_css(x)
+          s=nonlocal_s[0]
+          s=s.replace('</head>',''.join([
+              '<link rel="stylesheet" href="/reference-ui.css?v=6">\n',
+              '<link rel="stylesheet" href="/client-detail-links.css?v=3">\n',
+              '<link rel="stylesheet" href="/activity-manager.css?v=3">\n',
+          ])+'</head>',1)
 
-          css_assets=[
-              'reference-ui.css',
-              'client-detail-links.css',
-              'activity-manager.css',
-          ]
-          for x in css_assets:
-              once_css(x)
-          head=''.join([
-              '<link rel="stylesheet" href="/reference-ui.css?v=5">\n',
-              '<link rel="stylesheet" href="/client-detail-links.css?v=2">\n',
-              '<link rel="stylesheet" href="/activity-manager.css?v=2">\n',
-          ])
-          s=s.replace('</head>', head+'</head>', 1)
-
-          scripts=[
-              'reference-ui-stability.js',
-              'reference-ui.js',
-              'reference-ui-links-fix.js',
-              'link-admin.js',
-              'link-admin-pro.js',
-              'client-detail-links.js',
-              'activity-manager.js',
-          ]
+          nonlocal_s=[s]
+          scripts=['reference-ui-stability.js','reference-ui.js','reference-ui-links-fix.js','link-admin.js','link-admin-pro.js','client-detail-links.js','activity-manager.js']
           for x in scripts:
-              once_script(x)
-          body=''.join([f'<script src="/{x}?v=1"></script>\n' for x in scripts])
-          s=s.replace('</body>', body+'</body>', 1)
+              remove_asset(x)
+          s=nonlocal_s[0]
+          s=s.replace('</body>',''.join([f'<script src="/{x}?v=4"></script>\n' for x in scripts])+'</body>',1)
 
           if 'window.__RI_ADMIN' not in s:
               marker='const ADMIN='
               pos=s.find(marker)
               end=s.find('</script>',pos)
               if pos>=0 and end>=0:
-                  bridge='\nwindow.__RI_ADMIN={api:api,action:action,refresh:refresh};\n'
-                  s=s[:end]+bridge+s[end:]
+                  s=s[:end]+'\nwindow.__RI_ADMIN={api:api,action:action,refresh:refresh};\n'+s[end:]
 
           p.write_text(s,encoding='utf-8')
           PY
@@ -70,5 +55,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
           if git diff --cached --quiet; then echo "Already wired"; exit 0; fi
-          git commit -m "fix: wire Rey Ink control assets once"
+          git commit -m "fix: deploy control center link modules"
           git push
