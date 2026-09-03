@@ -1,6 +1,6 @@
 (function(){'use strict';
 function loadScript(id,src){if(document.getElementById(id))return;var s=document.createElement('script');s.id=id;s.src=src;s.async=false;(document.head||document.documentElement).appendChild(s)}
-loadScript('ri-exact-bg-loader','/rey-ink-bg.js?v=14');
+loadScript('ri-exact-bg-loader','/rey-ink-bg.js?v=15');
 loadScript('ri-brand-loader','/rey-ink-brand.js?v=5');
 const q=s=>document.querySelector(s); const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 function linkUrl(v){const s=String(v||'').trim();if(!s)return '';if(/^https?:\/\//i.test(s)){try{const u=new URL(s);if((u.pathname==='/'||u.pathname==='')&&u.searchParams.get('d'))return u.origin+'/client.html?d='+encodeURIComponent(u.searchParams.get('d'));}catch{}return s}return location.origin+'/client.html?d='+encodeURIComponent(s)}
