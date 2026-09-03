@@ -1,10 +1,18 @@
 (function(){'use strict';
-const q=s=>document.querySelector(s);
-const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-function linkUrl(v){const s=String(v||'').trim();return /^https?:\/\//i.test(s)?s:(location.origin+'/?d='+encodeURIComponent(s));}
+const q=s=>document.querySelector(s); const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function linkUrl(v){const s=String(v||'').trim();return /^https?:\/\//i.test(s)?s:(location.origin+'/client.html?d='+encodeURIComponent(s));}
+function injectTheme(){if(document.getElementById('ri-global-cleanup'))return;const st=document.createElement('style');st.id='ri-global-cleanup';st.textContent=`
+/* Rey Ink global cleanup: keep the dashboard stable and remove duplicate chrome. */
+body{background:#03040a!important;background-image:radial-gradient(900px 560px at 50% 0%,#6e32d826,transparent 65%),radial-gradient(700px 500px at 0% 80%,#32165b1c,transparent 70%)!important;background-attachment:fixed!important;}
+.head{display:none!important;}
+.tabs:before{content:"REY INK // CONTROL CENTER"!important;white-space:normal!important;}
+.riLinkActions{min-width:260px}.riLinkButtons{display:flex;gap:6px;flex-wrap:wrap}
+`;document.head.appendChild(st)}
+function hideDuplicateChrome(){document.querySelectorAll('body *').forEach(el=>{if(el.dataset.riHidden==='1')return;const t=(el.innerText||'').trim();if(!t||t.length>80)return;if(/^SISTEMA\s*\nControl Center/i.test(t)||/^Administrador\s*\nSUPER ADMIN/i.test(t)){const r=getComputedStyle(el);if(r.position==='fixed'||r.position==='absolute'||el.getBoundingClientRect().width>150){el.style.display='none';el.dataset.riHidden='1'}}})}
 function decorate(){const t=q('#linksTable');if(!t)return;const head=t.querySelector('thead tr');if(head&&!head.querySelector('.riLinkActionsHead')){const th=document.createElement('th');th.className='riLinkActionsHead';th.textContent='Administrar';head.appendChild(th)}t.querySelectorAll('tbody tr').forEach(tr=>{if(tr.querySelector('.riLinkActions'))return;const token=tr.querySelector('code')?.textContent?.trim()||'';if(!token)return;const client=tr.querySelector('td')?.textContent?.trim()||'Cliente';const td=document.createElement('td');td.className='riLinkActions';td.innerHTML='<div class="riLinkButtons"><button class="btn mini" data-ri-link-fix="copy" data-url="'+esc(linkUrl(token))+'">Copiar</button><button class="btn mini" data-ri-link-fix="open" data-url="'+esc(linkUrl(token))+'">Abrir</button><button class="btn mini" data-ri-link-fix="activity" data-client="'+esc(client)+'">Actividad</button></div>';tr.appendChild(td)})}
 async function copy(text){try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return true}}catch{}try{const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok}catch{return false}}
 function tab(n){q('.tab[data-tab="'+n+'"]')?.click()}
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-ri-link-fix]');if(b){const a=b.dataset.riLinkFix;if(a==='copy'){const old=b.textContent;const ok=await copy(b.dataset.url||'');b.textContent=ok?'Copiado ✓':'No se pudo copiar';setTimeout(()=>b.textContent=old,1200)}else if(a==='open'){const u=b.dataset.url||'';if(u)window.open(u,'_blank','noopener,noreferrer')}else if(a==='activity'){tab('history');setTimeout(()=>{const box=q('#historyList');const term=(b.dataset.client||'').toLowerCase();box?.querySelectorAll('.event').forEach(x=>x.style.display=(x.textContent||'').toLowerCase().includes(term)?'':'none')},180)}return}const p=e.target.closest('.riPanelLink');if(!p)return;const panel=p.closest('.riPanel');if(!panel)return;const m=panel.className;if(m.includes('riBrowsers'))tab('browsers');else if(m.includes('riLicenses'))tab('licenses');else if(m.includes('riActivity'))tab('history');else if(m.includes('riLinks'))tab('links');else if(m.includes('riClients'))tab('clients')});
-setInterval(decorate,1500);setTimeout(decorate,800);
+injectTheme();hideDuplicateChrome();decorate();
+const observer=new MutationObserver(()=>{requestAnimationFrame(()=>{hideDuplicateChrome();decorate()})});observer.observe(document.body,{subtree:true,childList:true});
 })();
