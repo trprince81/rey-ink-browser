@@ -10,13 +10,13 @@ function repairBackground(){try{const bg=backgroundData();if(bg){document.docume
 function forceBackgroundLayer(){try{const bg=backgroundData();if(!bg)return;let layer=document.getElementById('ri-background-layer');if(!layer){layer=document.createElement('div');layer.id='ri-background-layer';document.body.insertBefore(layer,document.body.firstChild)}layer.style.setProperty('background-image',bg,'important');layer.style.setProperty('background-size','cover','important');layer.style.setProperty('background-position','center center','important');layer.style.setProperty('background-repeat','no-repeat','important');layer.style.setProperty('background-attachment','fixed','important')}catch(_){} }
 function injectTheme(){if(document.getElementById('ri-global-cleanup'))return;const st=document.createElement('style');st.id='ri-global-cleanup';st.textContent=`
 html,body{background:#03040a!important;min-height:100vh!important}
-#ri-background-layer{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:0!important;pointer-events:none!important;background-color:#03040a!important;background-repeat:no-repeat!important;background-position:center center!important;background-size:cover!important;background-attachment:fixed!important}
+#ri-background-layer{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:0!important;pointer-events:none!important;background-color:#03040a!important;background-repeat:no-repeat!important;background-position:center center!important;background-size:cover!important;background-attachment:fixed!important;filter:none!important;opacity:1!important}
 body>*:not(#ri-background-layer){position:relative;z-index:1}
 .head{display:none!important}
-.hero{background:rgba(5,7,13,.52)!important}
-.section{background:rgba(5,7,13,.46)!important}
-.tabs{background:linear-gradient(180deg,rgba(8,10,18,.88),rgba(5,7,13,.82))!important}
-.riPanel,.riMetric,.riClient,.riRow,.riStat,.riQuickBtn,.riLinkPanel{backdrop-filter:blur(4px)}
+.hero{background:rgba(5,7,13,.28)!important}
+.section{background:rgba(5,7,13,.22)!important}
+.tabs{background:linear-gradient(180deg,rgba(8,10,18,.68),rgba(5,7,13,.58))!important}
+.riPanel,.riMetric,.riClient,.riRow,.riStat,.riQuickBtn,.riLinkPanel{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 .riLinkActions{min-width:340px}.riLinkButtons{display:flex;gap:6px;flex-wrap:wrap}.riLinkButtons .riDelete{border-color:#7a2f47!important;background:linear-gradient(180deg,#341521,#211018)!important;color:#ff9ab0!important}
 `;document.head.appendChild(st)}
 function hideDuplicateChrome(){document.querySelectorAll('body *').forEach(el=>{if(el.id==='ri-background-layer'||el.dataset.riHidden==='1')return;const t=(el.innerText||'').trim();if(!t||t.length>80)return;if(/^SISTEMA\s*\nControl Center/i.test(t)||/^Administrador\s*\nSUPER ADMIN/i.test(t)){const r=getComputedStyle(el);if(r.position==='fixed'||r.position==='absolute'||el.getBoundingClientRect().width>150){el.style.display='none';el.dataset.riHidden='1'}}})}
@@ -26,7 +26,7 @@ async function copy(text){try{if(navigator.clipboard?.writeText){await navigator
 async function revoke(b){const tr=b.closest('tr');if(!tr)return;const label=(tr.querySelector('td')?.textContent||'este link').trim();if(!confirm('¿Eliminar el link de '+label+'?\n\nEl enlace dejará de funcionar. El navegador y la extensión permanecerán emparejados.'))return;b.disabled=true;const old=b.textContent;b.textContent='Eliminando…';try{const native=tr.querySelector('button[data-ri="revoke"]'),id=native?.dataset.id;let x;if(id&&window.__RI_ADMIN?.api)x=await window.__RI_ADMIN.api({action:'delete_link',link_id:id});else{const r=await fetch(DELETE_API,{method:'POST',cache:'no-store',headers:{'content-type':'application/json'},body:JSON.stringify({token:b.dataset.token||''})});x=await r.json().catch(()=>({}));if(!r.ok)x.ok=false}if(!x?.ok)throw Error(x?.error||'No se pudo eliminar el link.');tr.remove();return}catch(e){b.disabled=false;b.textContent=old;alert(e.message||'No se pudo eliminar el link.')}}
 function tab(n){q('.tab[data-tab="'+n+'"]')?.click()}
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-ri-link-fix]');if(!b)return;const a=b.dataset.riLinkFix;if(a==='copy'){const old=b.textContent;b.textContent=await copy(b.dataset.url||'')?'Copiado ✓':'No se pudo copiar';setTimeout(()=>b.textContent=old,1200)}else if(a==='open'){const u=b.dataset.url||'';if(u)window.open(u,'_blank','noopener,noreferrer')}else if(a==='activity'){tab('history')}else if(a==='delete'){await revoke(b)}e.preventDefault();e.stopImmediatePropagation()},true);
-loadScript('ri-exact-bg-loader','/rey-ink-bg.js?v=20',function(){repairBackground();forceBackgroundLayer()});loadScript('ri-brand-loader','/rey-ink-brand.js?v=8');injectTheme();
+loadScript('ri-exact-bg-loader','/rey-ink-bg.js?v=21',function(){repairBackground();forceBackgroundLayer()});loadScript('ri-brand-loader','/rey-ink-brand.js?v=8');injectTheme();
 [50,250,800,1800].forEach(ms=>setTimeout(()=>{repairBackground();forceBackgroundLayer();hideDuplicateChrome();hideRevokedRows();decorate()},ms));
 const observer=new MutationObserver(()=>requestAnimationFrame(()=>{repairBackground();forceBackgroundLayer();hideDuplicateChrome();hideRevokedRows();decorate()}));observer.observe(document.body,{subtree:true,childList:true});
 })();
