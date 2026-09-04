@@ -10,13 +10,13 @@
 </head>
 <body>
 <main class="wrap"><div class="top"><div class="brand">REY <span>INK</span></div><a class="back" href="/">Control Center</a></div><section id="app" class="hero"><span class="pill"><span class="spin"></span>CONECTANDO</span><div class="title">Validando acceso…</div><div class="muted">Verificando el enlace seguro con el navegador asignado.</div></section></main>
-<script src="/rey-ink-bg.js?v=19"></script>
+<script src="/rey-ink-bg.js?v=20"></script>
 <script>
 (function(){'use strict';
 var LINK_API='https://rnduuuiskfuikzuepvnw.supabase.co/functions/v1/rey-ink-client-link';
 var CMD_API='https://rnduuuiskfuikzuepvnw.supabase.co/functions/v1/rey-ink-client-link-commands';
 var p=new URLSearchParams(location.search),token=(p.get('d')||p.get('token')||'').trim(),deviceId='',app=document.getElementById('app');
-function backgroundData(){try{var s=document.getElementById('ri-exact-bg');var m=s&&s.textContent.match(/body\{background-image:(url\([^;]+\))/);return m?m[1]:''}catch(_){return ''}}
+function backgroundData(){try{var s=document.getElementById('ri-exact-bg');var m=s&&s.textContent.match(/body\{background-image:(url\(".*?"\))/);return m?m[1]:''}catch(_){return ''}}
 function repairBackground(){var bg=backgroundData();if(!bg)return;try{document.body.style.setProperty('background-image',bg,'important');document.documentElement.style.setProperty('--ri-exact-image',bg)}catch(_){} }
 function forceBackgroundLayer(){var bg=backgroundData();if(!bg)return;try{var layer=document.getElementById('ri-background-layer');if(!layer){layer=document.createElement('div');layer.id='ri-background-layer';document.body.insertBefore(layer,document.body.firstChild)}layer.style.cssText='position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:0!important;pointer-events:none!important;background-color:#03040a!important;background-image:'+bg+'!important;background-size:cover!important;background-position:center center!important;background-repeat:no-repeat!important;background-attachment:fixed!important';document.querySelectorAll('body > *:not(#ri-background-layer)').forEach(function(el){el.style.position='relative';el.style.zIndex='1'})}catch(_){} }
 function installBackground(){repairBackground();forceBackgroundLayer();setTimeout(function(){repairBackground();forceBackgroundLayer()},100);setTimeout(function(){repairBackground();forceBackgroundLayer()},700)}
