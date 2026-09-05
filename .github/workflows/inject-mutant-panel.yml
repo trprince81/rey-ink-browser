@@ -21,49 +21,52 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          import re
 
           p = Path('index.html')
           html = p.read_text(encoding='utf-8')
-
           marker = 'id="mutant-panel-injected"'
+
           if marker in html:
-              print('Mutant module already injected; nothing to do.')
+              print('Mutant module already present.')
               raise SystemExit(0)
 
           injection = r'''<style id="mutant-panel-injected">
-          #mutantTab{color:#39efad;border-color:#173d32;background:linear-gradient(90deg,#0c241d,#0b1714)}
-          #mutantTab:hover{color:#7dffc9;background:linear-gradient(90deg,#10352a,#0d211b);box-shadow:0 0 24px #28e69c18}
+          #mutantTab{color:#39ff88!important;border-color:#20553a!important;background:linear-gradient(90deg,#07140e,#0b1e14)!important;font-weight:950!important}
+          #mutantTab:hover{color:#9affc2!important;background:linear-gradient(90deg,#0b2417,#0d2b1b)!important;box-shadow:0 0 28px #39ff8830!important}
+          #mutantTab.active{color:#07110b!important;background:linear-gradient(90deg,#39ff88,#16c968)!important;border-color:#39ff88!important;box-shadow:0 0 25px #39ff8840!important}
           #mutantPanel{display:none;grid-column:2;grid-row:1;min-width:0;padding:8px 8px 18px}
           #mutantPanel.active{display:block}
-          #mutantFrame{width:100%;height:680px;border:1px solid #1f3d32;border-radius:18px;background:#030a08;box-shadow:0 18px 50px #0008}
-          @media(max-width:720px){#mutantPanel{padding:6px}#mutantFrame{height:760px}}
+          #mutantPanel .mutant-shell{border:1px solid #1d4a31;border-radius:20px;background:radial-gradient(700px 300px at 90% 0,#0c5a3030,transparent 60%),#050907;box-shadow:0 25px 80px #0009;overflow:hidden}
+          #mutantPanel .mutant-head{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:18px 20px;border-bottom:1px solid #173323;background:linear-gradient(90deg,#07100b,#0a1510)}
+          #mutantPanel .mutant-brand{display:flex;align-items:center;gap:12px;font-size:23px;font-weight:950;letter-spacing:2px;color:#f2fff7}
+          #mutantPanel .mutant-logo{width:45px;height:45px;border:1px solid #2a7047;border-radius:13px;display:grid;place-items:center;background:#08120c;box-shadow:0 0 24px #39ff8820}
+          #mutantPanel .mutant-logo svg{width:30px;height:30px;filter:drop-shadow(0 0 7px #39ff8877)}
+          #mutantPanel .mutant-title-green{color:#39ff88}
+          #mutantPanel .mutant-desc{color:#7f9588;font-size:12px;margin-top:3px}
+          #mutantPanel .mutant-open{border:1px solid #2b6242;border-radius:10px;background:#0c1710;color:#39ff88;padding:9px 12px;font-weight:900;cursor:pointer}
+          #mutantPanel .mutant-open:hover{border-color:#39ff88;box-shadow:0 0 18px #39ff8825}
+          #mutantFrame{display:block;width:100%;height:760px;border:0;background:#030706}
+          @media(max-width:720px){#mutantPanel{padding:6px}#mutantPanel .mutant-head{align-items:flex-start;flex-direction:column}#mutantFrame{height:820px}}
           </style>
           <script id="mutant-panel-script">
           (()=>{
             const boot=()=>{
               const tabs=document.querySelector('.tabs');
               const hero=document.querySelector('.hero');
-              if(!tabs||!hero||document.getElementById('mutantTab')) return;
+              if(!tabs||!hero) return;
+              if(document.getElementById('mutantTab')) return;
               const tab=document.createElement('button');
               tab.type='button';tab.id='mutantTab';tab.className='tab';tab.textContent='MUTANT';
               tab.title='Centro de control de licencias y límites de Mutant';
               tabs.appendChild(tab);
               const panel=document.createElement('section');
               panel.id='mutantPanel';panel.className='section';
-              panel.innerHTML='<h2>MUTANT</h2><div class="notice">Licencias, perfiles y límites de Mutant.</div><iframe id="mutantFrame" title="Mutant Control Center" src="/mutant.html"></iframe>';
+              panel.innerHTML=`<div class="mutant-shell"><div class="mutant-head"><div class="mutant-brand"><div class="mutant-logo"><svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 50V14h9l15 20 15-20h9v36h-9V29L32 49 17 29v21H8Z" fill="#39ff88"/><path d="M25 14h14l-7 10-7-10Z" fill="#d9ffe9"/></svg></div><div>MUT<span class="mutant-title-green">ANT</span><div class="mutant-desc">Licencias · perfiles · límites</div></div></div><button class="mutant-open" type="button">Abrir centro completo ↗</button></div><iframe id="mutantFrame" title="Mutant Control Center" src="/mutant.html"></iframe></div>`;
               hero.appendChild(panel);
-              const hide=()=>{panel.classList.remove('active');tab.classList.remove('active');};
-              const show=()=>{
-                document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
-                document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-                panel.classList.add('active');tab.classList.add('active');
-              };
-              tab.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();show();},true);
-              document.addEventListener('click',e=>{
-                const t=e.target.closest?.('.tab');
-                if(t&&t!==tab) hide();
-              },true);
+              const hideOthers=()=>document.querySelectorAll('.section').forEach(s=>s!==panel&&s.classList.remove('active'));
+              const show=()=>{hideOthers();panel.classList.add('active');tab.classList.add('active');};
+              tab.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();show();},true);
+              panel.querySelector('.mutant-open').addEventListener('click',()=>window.open('/mutant.html','_blank'));
             };
             if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
           })();
@@ -71,7 +74,19 @@ jobs:
 
           html = html.replace('</body>', injection + '\n</body>', 1)
           p.write_text(html, encoding='utf-8')
-          print('Mutant module injected into index.html')
+          print('Mutant module injected.')
+
+      - name: Verify Mutant module is in index
+        shell: python
+        run: |
+          from pathlib import Path
+          html = Path('index.html').read_text(encoding='utf-8')
+          required = ['mutant-panel-injected','mutantTab','mutantPanel','/mutant.html','39ff88']
+          missing = [x for x in required if x not in html]
+          if missing:
+              raise SystemExit('Mutant verification failed: ' + ', '.join(missing))
+          print('Mutant module verification passed.')
+
       - name: Commit changes
         shell: bash
         run: |
@@ -82,5 +97,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git commit -m "Add Mutant module to Rey Ink Control Center"
+          git commit -m "Integrate visible Mutant control module"
           git push
