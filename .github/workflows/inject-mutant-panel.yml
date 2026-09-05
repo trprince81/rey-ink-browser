@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: mutant-panel
+  cancel-in-progress: true
+
 jobs:
   inject-mutant:
     runs-on: ubuntu-latest
@@ -21,15 +25,12 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-
           p = Path('index.html')
           html = p.read_text(encoding='utf-8')
           marker = 'id="mutant-panel-injected"'
-
           if marker in html:
               print('Mutant module already present.')
               raise SystemExit(0)
-
           injection = r'''<style id="mutant-panel-injected">
           #mutantTab{color:#39ff88!important;border-color:#20553a!important;background:linear-gradient(90deg,#07140e,#0b1e14)!important;font-weight:950!important}
           #mutantTab:hover{color:#9affc2!important;background:linear-gradient(90deg,#0b2417,#0d2b1b)!important;box-shadow:0 0 28px #39ff8830!important}
@@ -71,7 +72,6 @@ jobs:
             if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
           })();
           </script>'''
-
           html = html.replace('</body>', injection + '\n</body>', 1)
           p.write_text(html, encoding='utf-8')
           print('Mutant module injected.')
@@ -81,7 +81,7 @@ jobs:
         run: |
           from pathlib import Path
           html = Path('index.html').read_text(encoding='utf-8')
-          required = ['mutant-panel-injected','mutantTab','mutantPanel','/mutant.html','39ff88']
+          required = ['mutant-panel-injected','mutantTab','mutantPanel','/mutant.html','39ff88','MUTANT']
           missing = [x for x in required if x not in html]
           if missing:
               raise SystemExit('Mutant verification failed: ' + ', '.join(missing))
