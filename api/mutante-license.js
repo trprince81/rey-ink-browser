@@ -10,12 +10,15 @@ export default async function handler(req,res){
  try{
   const b=await body(req),email=String(b.email||'').trim().toLowerCase(),licenseKey=String(b.key||'').trim().toUpperCase();
   if(!/^\S+@\S+\.\S+$/.test(email)||!licenseKey)return out(res,{ok:false,error:'Correo y key son obligatorios'},400);
-  const q=await db('rey_ink_licenses?client_email=eq.'+encodeURIComponent(email)+'&license_key=eq.'+encodeURIComponent(licenseKey)+'&select=id,license_key,client_name,client_email,status,starts_at,expires_at,plan_id,device_id,access_mode,metadata');
+  const q=await db('rey_ink_licenses?client_email=eq.'+encodeURIComponent(email)+'&license_key=eq.'+encodeURIComponent(licenseKey)+'&select=id,license_key,client_name,client_email,status,starts_at,expires_at,plan_id,device_id,access_mode,metadata,max_profiles,max_sessions');
   if(!q.ok)return out(res,{ok:false,error:'No se pudo validar la licencia'},500);
   const rows=await q.json();if(!rows.length)return out(res,{ok:false,error:'Correo o key incorrectos'},401);
   const lic=rows[0],now=new Date(),owner=lic.access_mode==='owner_unlimited'||lic.metadata?.role==='owner';
   if(lic.status==='revoked'||lic.status==='paused')return out(res,{ok:false,error:'La licencia está '+lic.status},403);
   if(!lic.expires_at||new Date(lic.expires_at)<=now){if(lic.status!=='expired')await db('rey_ink_licenses?id=eq.'+encodeURIComponent(lic.id),{method:'PATCH',body:JSON.stringify({status:'expired',updated_at:now.toISOString()})});return out(res,{ok:false,error:'La licencia está vencida',expires_at:lic.expires_at},403)}
-  return out(res,{ok:true,authenticated:true,license:{id:lic.id,client_name:lic.client_name,client_email:lic.client_email,expires_at:lic.expires_at,plan_id:lic.plan_id,device_id:lic.device_id,access_mode:owner?'owner_unlimited':'licensed',entitlements:{unlimitedProfiles:owner,unlimitedDevices:owner,unlimitedSessions:owner}}});
+  let maxProfiles=lic.max_profiles,maxSessions=lic.max_sessions,maxDevices=null;
+  if(!owner&&lic.plan_id){const pr=await db('rey_ink_plans?id=eq.'+encodeURIComponent(lic.plan_id)+'&select=max_profiles,max_devices,max_sessions');if(pr.ok){const plans=await pr.json();if(plans[0]){if(maxProfiles==null)maxProfiles=plans[0].max_profiles;if(maxSessions==null)maxSessions=plans[0].max_sessions;maxDevices=plans[0].max_devices}}}
+  if(owner){maxProfiles=null;maxSessions=null;maxDevices=null}
+  return out(res,{ok:true,authenticated:true,license:{id:lic.id,client_name:lic.client_name,client_email:lic.client_email,expires_at:lic.expires_at,plan_id:lic.plan_id,device_id:lic.device_id,access_mode:owner?'owner_unlimited':'licensed',limits:{profiles:maxProfiles,devices:maxDevices,sessions:maxSessions},entitlements:{unlimitedProfiles:owner,unlimitedDevices:owner,unlimitedSessions:owner}}});
  }catch(e){return out(res,{ok:false,error:'Error de validación'},500)}
 }
