@@ -1,0 +1,52 @@
+name: Mutant integration
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Inject Mutant
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          html = p.read_text(encoding='utf-8')
+          if 'id="mutant-panel-injected"' not in html:
+              marker = '<style id="mutant-panel-injected">'
+              css = '''<style id="mutant-panel-injected">
+          #mutantTab{color:#39ff88!important;border:1px solid #20553a!important;background:#07140e!important;font-weight:900!important}
+          #mutantTab.active{color:#07110b!important;background:#39ff88!important}
+          #mutantPanel{display:none!important;grid-column:1/-1;padding:12px}
+          #mutantPanel.active{display:block!important}
+          #mutantFrame{display:block;width:100%;height:780px;border:0;border-radius:18px;background:#030706}
+          </style>'''
+              js = '''<script id="mutant-panel-script">(()=>{function boot(){const tabs=document.querySelector('.tabs'),hero=document.querySelector('.hero');if(!tabs||!hero||document.getElementById('mutantTab'))return;const t=document.createElement('button');t.id='mutantTab';t.type='button';t.className='tab';t.textContent='MUTANT';tabs.appendChild(t);const p=document.createElement('section');p.id='mutantPanel';p.className='section';p.innerHTML='<iframe id="mutantFrame" title="Mutant Control Center" src="/mutant.html"></iframe>';hero.appendChild(p);t.addEventListener('click',()=>{document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));p.classList.add('active');document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active')});}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot()})();</script>'''
+              html = html.replace('</head>', css + '\n</head>', 1)
+              html = html.replace('</body>', js + '\n</body>', 1)
+              p.write_text(html, encoding='utf-8')
+          else:
+              print('Mutant already integrated')
+          text=p.read_text(encoding='utf-8')
+          required=['mutant-panel-injected','mutantTab','mutantPanel','/mutant.html','MUTANT']
+          missing=[x for x in required if x not in text]
+          if missing: raise SystemExit('Missing: '+', '.join(missing))
+          Path('MUTANT-INTEGRATION-OK.txt').write_text('Mutant integration verified.\n',encoding='utf-8')
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html MUTANT-INTEGRATION-OK.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Integrate Mutant control module'
+          git push
