@@ -1,0 +1,7 @@
+{
+  "code": "P500",
+  "name": "500 perfiles",
+  "profiles": 500,
+  "price_usd": 150,
+  "duration_days": 30
+}
