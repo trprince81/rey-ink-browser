@@ -20,6 +20,18 @@ jobs:
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
 
+          # Keep the existing Control Center logic, but route browser traffic
+          # through the Supabase proxy so Vercel Functions quota cannot break it.
+          s=s.replace(
+              "const API='https://rnduuuiskfuikzuepvnw.supabase.co/functions/v1/rey-ink-control-center-v2';",
+              "const API='https://rnduuuiskfuikzuepvnw.supabase.co/functions/v1/rey-ink-control-center-proxy';"
+          )
+          s=s.replace(
+              "headers:{'x-rey-ink-key':ADMIN,'content-type':'application/json'}",
+              "headers:{'content-type':'application/json'}"
+          )
+          s=s.replace('/reference-ui-link-fix.js?v=1','/reference-ui-link-fix.js?v=2')
+
           def remove_asset(src):
               nonlocal_s[0]=re.sub(r'<script[^>]+src=["\']/'+re.escape(src)+r'(?:\?[^"\']*)?["\'][^>]*></script>\s*', '', nonlocal_s[0], flags=re.I)
           def remove_css(href):
@@ -55,5 +67,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
           if git diff --cached --quiet; then echo "Already wired"; exit 0; fi
-          git commit -m "fix: deploy control center link modules"
+          git commit -m "fix: route control center through Supabase proxy"
           git push
