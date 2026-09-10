@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inject reference assets and admin bridge
+      - name: Inject reference assets and database RPC bridge
         shell: bash
         run: |
           python3 - <<'PY'
@@ -20,15 +20,34 @@ jobs:
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
 
-          # Keep the existing Control Center logic, but route browser traffic
-          # through the Supabase proxy so Vercel Functions quota cannot break it.
+          # The Edge Function was returning HTTP 402 after the project hit its
+          # function-invocation restriction. Keep the UI on Supabase, but use
+          # a security-definer Postgres RPC instead of any Edge Function.
           s=s.replace(
               "const API='https://rnduuuiskfuikzuepvnw.supabase.co/functions/v1/rey-ink-control-center-v2';",
-              "const API='https://rnduuuiskfuikzuepvnw.supabase.co/functions/v1/rey-ink-control-center-proxy';"
+              "const API='https://rnduuuiskfuikzuepvnw.supabase.co/rest/v1/rpc/rey_ink_control_center';\nconst SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJuZHV1d2lza2Z1aWt6dWVwdm53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NTc5MjQsImV4cCI6MjEwMzQzMzkyNH0.1-FDsDgmlC8pzrcnRVo6UqSQmkvRihGps81ZSnlktRA';"
           )
           s=s.replace(
-              "headers:{'x-rey-ink-key':ADMIN,'content-type':'application/json'}",
-              "headers:{'content-type':'application/json'}"
+              "const API='https://rnduuuiskfuikzuepvnw.supabase.co/functions/v1/rey-ink-control-center-proxy';",
+              "const API='https://rnduuuiskfuikzuepvnw.supabase.co/rest/v1/rpc/rey_ink_control_center';\nconst SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJuZHV1d2lza2Z1aWt6dWVwdm53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NTc5MjQsImV4cCI6MjEwMzQzMzkyNH0.1-FDsDgmlC8pzrcnRVo6UqSQmkvRihGps81ZSnlktRA';"
+          )
+
+          # Replace the old REST/Edge-function client with one POST to the RPC.
+          s=re.sub(
+              r"async function api\(body=null,action=''\)\{.*?\}\nfunction deviceName",
+              """async function api(body=null,action=''){
+const a=action||body?.action||'get_data';
+const payload=body?{...body}:{};
+delete payload.action;
+const r=await fetch(API,{method:'POST',headers:{apikey:SUPABASE_ANON,Authorization:'Bearer '+SUPABASE_ANON,'content-type':'application/json'},body:JSON.stringify({p_admin_key:ADMIN,p_action:a,p_payload:payload}),cache:'no-store'});
+let j={};try{j=await r.json()}catch{}
+if(!r.ok)throw Error(j.message||j.error||('HTTP '+r.status));
+if(j?.error)throw Error(j.error);
+return j}
+function deviceName""",
+              s,
+              count=1,
+              flags=re.S
           )
 
           def remove_asset(src):
@@ -53,11 +72,12 @@ jobs:
           s=nonlocal_s[0]
           s=s.replace('</body>',''.join([f'<script src="/{x}?v=4"></script>\n' for x in scripts])+'</body>',1)
 
-          # Load the API/Mutant bridge explicitly and with a new cache key.
+          # Load the Mutant/API bridge explicitly. It will still handle the
+          # Mutant iframe, while the main Control Center now uses the RPC.
           nonlocal_s=[s]
           remove_asset('reference-ui-link-fix.js')
           s=nonlocal_s[0]
-          s=s.replace('</body>','<script src="/reference-ui-link-fix.js?v=2"></script>\n</body>',1)
+          s=s.replace('</body>','<script src="/reference-ui-link-fix.js?v=3"></script>\n</body>',1)
 
           if 'window.__RI_ADMIN' not in s:
               marker='const ADMIN='
@@ -72,5 +92,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
           if git diff --cached --quiet; then echo "Already wired"; exit 0; fi
-          git commit -m "fix: ensure API bridge is loaded"
+          git commit -m "fix: use database RPC for control center"
           git push
