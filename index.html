@@ -339,13 +339,13 @@ body:before{opacity:.16!important;background-image:linear-gradient(#8f62ff0a 1px
 </div></main>
 <script>
 'use strict';
-const API='https://rnduuuiskfuikzuepvnw.supabase.co/functions/v1/rey-ink-control-center-v2';
+const API='https://rnduuuiskfuikzuepvnw.supabase.co/functions/v1/rey-ink-control-center-proxy';
 const ADMIN='U5kpZWkRNEncsPS5JxDh_OOi4XNY-XaKVNnM3zF2wHrUCdlx';
 let data={devices:[],licenses:[],plans:[],clients:[],links:[]},selectedClientId=null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const norm=s=>String(s??'').trim().toLowerCase();
-async function api(body=null,action=''){const url=API+(action?'?action='+encodeURIComponent(action):'');const r=await fetch(url,{method:body?'POST':'GET',headers:{'x-rey-ink-key':ADMIN,'content-type':'application/json'},body:body?JSON.stringify(body):undefined,cache:'no-store'});let j={};try{j=await r.json()}catch{}if(!r.ok)throw Error(j.error||('HTTP '+r.status));return j}
+async function api(body=null,action=''){const url=API+(action?'?action='+encodeURIComponent(action):'');const r=await fetch(url,{method:body?'POST':'GET',headers:{'content-type':'application/json'},body:body?JSON.stringify(body):undefined,cache:'no-store'});let j={};try{j=await r.json()}catch{}if(!r.ok)throw Error(j.error||('HTTP '+r.status));return j}
 function deviceName(d){return String(d?.name||d?.metadata?.display_name||d?.device_code||d?.metadata?.installation_id||'Navegador')}
 function deviceIdentity(d){return String(d?.device_code||d?.metadata?.installation_id||'')}
 function clientNameById(id){return (data.clients||[]).find(c=>String(c.id)===String(id))?.name||'Cliente'}
@@ -379,7 +379,7 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{doc
 refresh();
 
 window.__RI_ADMIN={api:api,action:action,refresh:refresh};
-</script><script src="/reference-ui-link-fix.js?v=1"></script>
+</script><script src="/reference-ui-link-fix.js?v=2"></script>
 <style id="mutant-panel-injected">
 #mutantTab{color:#39efad;border-color:#173d32;background:linear-gradient(90deg,#0c241d,#0b1714)}
 #mutantTab:hover{color:#7dffc9;background:linear-gradient(90deg,#10352a,#0d211b);box-shadow:0 0 24px #28e69c18}
