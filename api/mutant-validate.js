@@ -20,9 +20,10 @@ export default function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, valid: false, error: 'Método no permitido' });
 
   try {
-    const { email, license_key } = req.body || {};
-    const e = String(email || '').trim().toLowerCase();
-    const key = String(license_key || '').trim();
+    const body = req.body || {};
+    const e = String(body.email || '').trim().toLowerCase();
+    // MUTANT client sends "license"; accept "license_key" too for compatibility.
+    const key = String(body.license || body.license_key || '').trim();
     const parts = key.match(/^MUT-([A-Za-z0-9_-]+)-([0-9A-F]{16})$/);
     if (!/^\S+@\S+\.\S+$/.test(e) || !parts) return res.status(400).json({ ok: true, valid: false, error: 'Correo o licencia inválidos' });
 
